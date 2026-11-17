@@ -1,0 +1,2417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<title>ZOMBIE APOLOCASE — Tactical 3D FPS</title>
+<meta name="description" content="Zombie Apolocase: a single-file 3D tactical survival first-person shooter built with Three.js. Clear Sector 7 of 10 infected zombies before the clock runs out.">
+<meta property="og:title" content="ZOMBIE APOLOCASE">
+<meta property="og:description" content="Clear Sector 7 of 10 infected zombies before the clock runs out.">
+<meta property="og:type" content="website">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%230c0e11'/%3E%3Ccircle cx='32' cy='32' r='20' fill='none' stroke='%23d4a547' stroke-width='3'/%3E%3Ccircle cx='32' cy='32' r='4' fill='%23e84747'/%3E%3Cpath d='M32 4v12M32 48v12M4 32h12M48 32h12' stroke='%23d4a547' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;user-select:none;-webkit-user-select:none}
+  :root{
+    --bg:#090b0d;
+    --ink:#f2efe9;
+    --ink2:rgba(242,239,233,.66);
+    --ink3:rgba(242,239,233,.34);
+    --line:rgba(242,239,233,.13);
+    --line2:rgba(242,239,233,.26);
+    --amber:#e0a43c;
+    --red:#e64545;
+    --green:#55c27a;
+    --disp:'Barlow Condensed','Arial Narrow',sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,monospace;
+  }
+  html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:var(--disp);-webkit-font-smoothing:antialiased}
+  canvas{display:block;position:fixed;inset:0;width:100%!important;height:100%!important;z-index:0}
+
+  #boot{
+    position:fixed;inset:0;z-index:80;background:#07090b;
+    display:flex;align-items:center;justify-content:center;
+    transition:opacity .45s ease;
+  }
+  #boot.off{opacity:0;pointer-events:none}
+  #boot .inner{width:min(360px,80vw)}
+  #boot .kicker{font:700 11px/1 var(--mono);letter-spacing:.26em;color:var(--amber);margin-bottom:10px}
+  #boot .msg{font:600 13px/1.4 var(--mono);color:var(--ink2);margin-bottom:16px}
+  #boot .bar{height:2px;background:rgba(255,255,255,.1);overflow:hidden}
+  #boot .fill{height:100%;width:12%;background:var(--amber);transition:width .25s ease}
+
+  #vig{position:fixed;inset:0;pointer-events:none;z-index:2;
+    background:radial-gradient(ellipse at center,rgba(0,0,0,0) 60%,rgba(0,0,0,.52) 100%)}
+  #dmg{position:fixed;inset:0;pointer-events:none;z-index:3;opacity:0;
+    background:radial-gradient(ellipse at center,rgba(195,28,28,0) 40%,rgba(195,28,28,.75) 100%);
+    transition:opacity .08s ease-out}
+  #lowHp{position:fixed;inset:0;pointer-events:none;z-index:3;opacity:0;
+    background:radial-gradient(ellipse at center,rgba(150,14,14,0) 44%,rgba(150,14,14,.55) 100%)}
+
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:5;display:none}
+  body.playing #hud{display:block}
+  body.playing{cursor:none}
+
+  #topBar{
+    position:fixed;top:24px;left:0;right:0;
+    display:flex;justify-content:center;align-items:baseline;gap:14px;
+    font-family:var(--mono);font-size:12px;letter-spacing:.18em;color:var(--ink2);
+    text-shadow:0 1px 10px rgba(0,0,0,.85);
+  }
+  #topBar b{color:var(--ink);font-weight:700;font-size:15px;letter-spacing:.08em}
+  #topBar .sep{color:var(--ink3)}
+
+  #healthBlock{position:fixed;left:32px;bottom:28px;text-shadow:0 2px 14px rgba(0,0,0,.9)}
+  #hpRow{display:flex;align-items:baseline;gap:10px}
+  #hpNum{font-weight:800;font-size:58px;line-height:.88;letter-spacing:-.02em;font-variant-numeric:tabular-nums;transition:color .18s}
+  #hpUnit{font:700 12px/1 var(--mono);letter-spacing:.2em;color:var(--ink2)}
+  #hpTrack{width:148px;height:3px;background:rgba(255,255,255,.16);margin-top:9px;overflow:hidden}
+  #hpFill{height:100%;width:100%;background:var(--ink);transition:width .16s ease,background .18s}
+
+  #ammoBlock{position:fixed;right:32px;bottom:28px;text-align:right;text-shadow:0 2px 14px rgba(0,0,0,.9)}
+  #ammoRow{display:flex;align-items:baseline;justify-content:flex-end;gap:6px}
+  #ammoMag{font-weight:800;font-size:58px;line-height:.88;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  #ammoSlash{font-weight:400;font-size:26px;color:var(--ink3)}
+  #ammoRes{font-weight:600;font-size:26px;color:var(--ink2);font-variant-numeric:tabular-nums}
+  #weapName{font:700 12px/1 var(--mono);letter-spacing:.22em;color:var(--amber);margin-top:9px}
+
+  #reloadCue{
+    position:fixed;left:50%;top:57%;transform:translateX(-50%);
+    font:700 11px/1 var(--mono);letter-spacing:.22em;color:var(--ink);
+    text-shadow:0 1px 10px rgba(0,0,0,.95);
+    display:none;flex-direction:column;align-items:center;gap:6px;
+  }
+  #reloadCue .rbar{width:96px;height:2px;background:rgba(255,255,255,.18);overflow:hidden}
+  #reloadCue .rfill{height:100%;width:0;background:var(--amber)}
+
+  #xhair{position:fixed;left:50%;top:50%;width:0;height:0;pointer-events:none;z-index:6}
+  #xhair span{position:absolute;background:rgba(242,239,233,.92);box-shadow:0 0 4px rgba(0,0,0,.85)}
+  #xhair .t{width:2px;height:9px;left:-1px;top:-15px}
+  #xhair .b{width:2px;height:9px;left:-1px;top:6px}
+  #xhair .l{height:2px;width:9px;top:-1px;left:-15px}
+  #xhair .r{height:2px;width:9px;top:-1px;left:6px}
+  #xhair .d{width:2px;height:2px;left:-1px;top:-1px;background:var(--amber)}
+
+  #hitmark{position:fixed;left:50%;top:50%;width:0;height:0;pointer-events:none;z-index:7;opacity:0;transition:opacity .12s ease-out}
+  #hitmark i{position:absolute;width:10px;height:2px;background:#fff;box-shadow:0 0 6px rgba(0,0,0,.9)}
+  #hitmark i:nth-child(1){transform:translate(-13px,-13px) rotate(45deg)}
+  #hitmark i:nth-child(2){transform:translate(3px,-13px) rotate(-45deg)}
+  #hitmark i:nth-child(3){transform:translate(-13px,11px) rotate(-45deg)}
+  #hitmark i:nth-child(4){transform:translate(3px,11px) rotate(45deg)}
+  #hitmark.kill i{background:var(--red);width:12px}
+
+  #dmgArc{position:fixed;left:50%;top:50%;width:180px;height:180px;margin:-90px 0 0 -90px;pointer-events:none;z-index:6;opacity:0;transition:opacity .25s ease-out}
+  #dmgArc::before{
+    content:"";position:absolute;left:50%;top:0;width:54px;height:4px;margin-left:-27px;
+    background:linear-gradient(90deg,transparent,var(--red),transparent);border-radius:2px;
+    box-shadow:0 0 12px var(--red);
+  }
+
+  #feed{position:fixed;left:32px;top:64px;display:flex;flex-direction:column;gap:4px;
+    font:600 11px/1.3 var(--mono);letter-spacing:.12em;color:var(--ink2);text-shadow:0 1px 8px rgba(0,0,0,.9)}
+  #feed div{animation:feedIn .18s ease}
+  #feed b{color:var(--amber);font-weight:700}
+  @keyframes feedIn{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:none}}
+
+  .screen{
+    position:fixed;inset:0;z-index:30;display:none;
+    padding:clamp(28px,5vw,64px);
+    background:linear-gradient(105deg,rgba(7,9,11,.90) 0%,rgba(7,9,11,.74) 46%,rgba(7,9,11,.36) 100%);
+  }
+  .screen.show{display:flex;flex-direction:column;justify-content:center}
+  .screen .col{max-width:520px}
+  .eyebrow{font:700 11px/1 var(--mono);letter-spacing:.26em;color:var(--amber);margin-bottom:14px}
+  .title{font-weight:800;font-size:clamp(54px,8vw,104px);line-height:.88;letter-spacing:-.02em;text-transform:uppercase}
+  .title small{display:block;font-size:.34em;font-weight:600;letter-spacing:.22em;color:var(--ink2);margin-top:8px}
+  .lede{margin-top:22px;font:400 15px/1.65 system-ui,-apple-system,sans-serif;color:var(--ink2);max-width:44ch}
+
+  .keys{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px 26px;margin-top:28px;padding-top:22px;border-top:1px solid var(--line)}
+  .kv{display:flex;align-items:center;gap:10px;font:600 12px/1.2 var(--mono);color:var(--ink2)}
+  .kv kbd{display:inline-block;padding:4px 7px;border:1px solid var(--line2);background:rgba(255,255,255,.04);color:var(--ink);font:700 11px/1 var(--mono);min-width:28px;text-align:center}
+
+  .actions{display:flex;align-items:center;gap:14px;margin-top:32px;flex-wrap:wrap}
+  .btn{
+    appearance:none;border:0;cursor:pointer;
+    font:800 15px/1 var(--disp);letter-spacing:.22em;text-transform:uppercase;
+    padding:16px 32px;background:var(--amber);color:#0b0d0f;
+    transition:transform .12s ease,background .15s ease;
+  }
+  .btn:hover{background:#ebb34e;transform:translateY(-1px)}
+  .btn:active{transform:translateY(0)}
+  .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line2);padding:15px 22px;font-weight:700}
+  .btn.ghost:hover{border-color:var(--ink);background:rgba(255,255,255,.05)}
+
+  .hint{margin-top:14px;font:600 11px/1.5 var(--mono);letter-spacing:.14em;color:var(--ink3)}
+
+  .slug{position:fixed;font:600 11px/1.5 var(--mono);letter-spacing:.18em;color:var(--ink3);pointer-events:none}
+  .slug.tl{top:26px;left:32px;color:var(--ink2)}
+  .slug.tr{top:26px;right:32px;text-align:right}
+  .slug.br{bottom:26px;right:32px;text-align:right}
+
+  .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px;margin-top:28px;padding:20px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .stat .k{font:600 10px/1 var(--mono);letter-spacing:.2em;color:var(--ink3)}
+  .stat .v{font:800 34px/1.05 var(--disp);margin-top:6px;font-variant-numeric:tabular-nums}
+
+  #pauseScreen{background:rgba(7,9,11,.78);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+  .sliderRow{margin-top:26px;padding-top:20px;border-top:1px solid var(--line);display:flex;align-items:center;gap:16px;max-width:360px}
+  .sliderRow label{font:700 11px/1 var(--mono);letter-spacing:.2em;color:var(--ink2);white-space:nowrap}
+  .sliderRow input[type=range]{flex:1;accent-color:var(--amber);cursor:pointer}
+  .sliderRow span{font:700 12px/1 var(--mono);color:var(--ink);width:36px;text-align:right}
+
+  #lockNote{
+    position:fixed;bottom:26px;left:50%;transform:translateX(-50%);z-index:20;
+    font:700 11px/1 var(--mono);letter-spacing:.2em;color:var(--amber);
+    background:rgba(7,9,11,.85);border:1px solid var(--line2);padding:10px 16px;
+    display:none;pointer-events:none;
+  }
+
+  #touch{display:none;position:fixed;inset:0;z-index:12;pointer-events:none}
+  @media (pointer:coarse){
+    #touch{display:block}
+    #xhair .t,#xhair .b,#xhair .l,#xhair .r{opacity:.65}
+  }
+  #joyZone{position:fixed;left:18px;bottom:88px;width:132px;height:132px;pointer-events:auto;touch-action:none}
+  #joyBase{position:absolute;inset:0;border-radius:50%;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.04)}
+  #joyKnob{position:absolute;left:50%;top:50%;width:48px;height:48px;margin:-24px 0 0 -24px;border-radius:50%;background:rgba(242,239,233,.32);border:1px solid rgba(255,255,255,.45)}
+  #lookZone{position:fixed;right:0;top:0;width:55vw;height:100vh;pointer-events:auto;touch-action:none}
+  .tbtn{
+    position:fixed;pointer-events:auto;touch-action:none;
+    border:1px solid rgba(255,255,255,.28);background:rgba(10,12,15,.55);color:var(--ink);
+    font:700 11px/1 var(--mono);letter-spacing:.14em;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .tbtn:active{background:rgba(224,164,60,.35);border-color:var(--amber)}
+  #tbFire{right:26px;bottom:96px;width:76px;height:76px;border-color:rgba(224,164,60,.65)}
+  #tbAim{right:114px;bottom:84px;width:54px;height:54px}
+  #tbJump{right:114px;bottom:150px;width:50px;height:50px}
+  #tbRel{right:34px;bottom:184px;width:50px;height:50px}
+  #tbWep{right:176px;bottom:96px;width:46px;height:46px}
+  #tbPause{right:24px;top:20px;width:42px;height:42px;border-radius:4px}
+</style>
+</head>
+<body>
+
+<script>
+  /* CDN 兜底：若模块加载失败，避免永久卡在加载条 */
+  setTimeout(function(){
+    var b = document.getElementById('boot');
+    if (b && !b.classList.contains('off')) b.classList.add('off');
+  }, 9000);
+</script>
+
+<div id="boot">
+  <div class="inner">
+    <div class="kicker">ZOMBIE APOLOCASE // INITIALIZING</div>
+    <div class="msg" id="bootMsg">Loading Three.js engine…</div>
+    <div class="bar"><div class="fill" id="bootFill"></div></div>
+  </div>
+</div>
+
+<div id="vig"></div>
+<div id="dmg"></div>
+<div id="lowHp"></div>
+<div id="lockNote">CLICK VIEWPORT TO LOCK AIM</div>
+
+<div id="hud">
+  <div id="topBar">
+    <span>ZOMBIES <b id="hudAlive">10</b><span class="sep"> / 10</span></span>
+    <span class="sep">·</span>
+    <span id="hudClock">03:00</span>
+  </div>
+
+  <div id="feed"></div>
+
+  <div id="xhair"><span class="t"></span><span class="b"></span><span class="l"></span><span class="r"></span><span class="d"></span></div>
+  <div id="hitmark"><i></i><i></i><i></i><i></i></div>
+  <div id="dmgArc"></div>
+
+  <div id="reloadCue">
+    <span id="reloadTxt">RELOADING</span>
+    <div class="rbar"><div class="rfill" id="reloadFill"></div></div>
+  </div>
+
+  <div id="healthBlock">
+    <div id="hpRow"><span id="hpNum">100</span><span id="hpUnit">HP</span></div>
+    <div id="hpTrack"><div id="hpFill"></div></div>
+  </div>
+
+  <div id="ammoBlock">
+    <div id="ammoRow"><span id="ammoMag">30</span><span id="ammoSlash">/</span><span id="ammoRes">120</span></div>
+    <div id="weapName">MK-18 CARBINE</div>
+  </div>
+</div>
+
+<div id="touch">
+  <div id="lookZone"></div>
+  <div id="joyZone"><div id="joyBase"></div><div id="joyKnob"></div></div>
+  <div class="tbtn" id="tbFire">FIRE</div>
+  <div class="tbtn" id="tbAim">ADS</div>
+  <div class="tbtn" id="tbJump">JUMP</div>
+  <div class="tbtn" id="tbRel">RLD</div>
+  <div class="tbtn" id="tbWep">1/2</div>
+  <div class="tbtn" id="tbPause">II</div>
+</div>
+
+<section class="screen show" id="startScreen">
+  <div class="slug tl">ZOMBIE APOLOCASE // SECTOR 7</div>
+  <div class="slug tr">CONTAINER YARD 04<br>GRID 118-042</div>
+  <div class="slug br">10 ZOMBIES · 03:00 ON THE CLOCK</div>
+  <div class="col">
+    <div class="eyebrow">CLASSIFIED // ZOMBIE APOLOCASE</div>
+    <div class="title">WAREHOUSE<br>DISTRICT<small>SECTOR 7 — INFECTED</small></div>
+    <p class="lede">Ten infected zombies have overrun the container yard and catwalks. Sweep the stacks, keep your distance before they swarm, and neutralize every last one before the clock hits zero.</p>
+    <div class="keys">
+      <div class="kv"><kbd>WASD</kbd> Move</div>
+      <div class="kv"><kbd>LMB</kbd> Fire</div>
+      <div class="kv"><kbd>SHIFT</kbd> Sprint</div>
+      <div class="kv"><kbd>RMB</kbd> Aim Down Sights</div>
+      <div class="kv"><kbd>SPACE</kbd> Jump</div>
+      <div class="kv"><kbd>R</kbd> Reload</div>
+      <div class="kv"><kbd>C</kbd> Crouch</div>
+      <div class="kv"><kbd>1 / 2</kbd> Carbine / Sidearm</div>
+    </div>
+    <div class="actions">
+      <button class="btn" id="btnDeploy">DEPLOY</button>
+    </div>
+    <div class="hint">ELIMINATE ALL 10 ZOMBIES BEFORE THE CLOCK RUNS OUT</div>
+  </div>
+</section>
+
+<section class="screen" id="pauseScreen">
+  <div class="slug tl">ZOMBIE APOLOCASE // PAUSED</div>
+  <div class="col">
+    <div class="eyebrow">TACTICAL HOLD</div>
+    <div class="title">PAUSED</div>
+    <div class="sliderRow">
+      <label for="sensSlider">LOOK SENSITIVITY</label>
+      <input type="range" id="sensSlider" min="0.2" max="2.5" step="0.05" value="1.0">
+      <span id="sensVal">1.00</span>
+    </div>
+    <div class="actions">
+      <button class="btn" id="btnResume">RESUME</button>
+      <button class="btn ghost" id="btnRestart">RESTART MISSION</button>
+    </div>
+  </div>
+</section>
+
+<section class="screen" id="endScreen">
+  <div class="slug tl" id="endSlug">ZOMBIE APOLOCASE // DEBRIEF</div>
+  <div class="col">
+    <div class="eyebrow" id="endEyebrow">SECTOR SECURED</div>
+    <div class="title" id="endTitle">MISSION<br>COMPLETE</div>
+    <p class="lede" id="endSub">All infected neutralized.</p>
+    <div class="stats">
+      <div class="stat"><div class="k">ZOMBIES</div><div class="v" id="stKills">10/10</div></div>
+      <div class="stat"><div class="k">ACCURACY</div><div class="v" id="stAcc">0%</div></div>
+      <div class="stat"><div class="k">HEADSHOTS</div><div class="v" id="stHs">0</div></div>
+      <div class="stat"><div class="k">TIME</div><div class="v" id="stTime">00:00</div></div>
+    </div>
+    <div class="actions">
+      <button class="btn" id="btnAgain">DEPLOY AGAIN</button>
+    </div>
+  </div>
+</section>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+const bootFill = document.getElementById('bootFill');
+const bootMsg  = document.getElementById('bootMsg');
+const bootEl   = document.getElementById('boot');
+const setBoot  = (p,m)=>{ bootFill.style.width = p+'%'; bootMsg.textContent = m; };
+setBoot(32,'Synthesizing procedural PBR textures…');
+
+/* ================================================================
+   1. RENDERER, SCENE, CAMERA & POST-PROCESSING
+================================================================ */
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.08;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.body.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9fb4c7);
+scene.fog = new THREE.FogExp2(0x9cb1c4, 0.0085);
+
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.05, 220);
+camera.rotation.order = 'YXZ';
+scene.add(camera);
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.30, 0.45, 0.88);
+composer.addPass(bloomPass);
+composer.addPass(new OutputPass());
+
+function buildEnvMap(){
+  const c = document.createElement('canvas'); c.width = 512; c.height = 256;
+  const g = c.getContext('2d');
+  const grad = g.createLinearGradient(0,0,0,256);
+  grad.addColorStop(0.00,'#5d83ab');
+  grad.addColorStop(0.46,'#b9cad8');
+  grad.addColorStop(0.50,'#ddd2be');
+  grad.addColorStop(0.54,'#6d655a');
+  grad.addColorStop(1.00,'#2e3136');
+  g.fillStyle = grad; g.fillRect(0,0,512,256);
+  const sun = g.createRadialGradient(340,74,2,340,74,56);
+  sun.addColorStop(0,'rgba(255,248,225,1)');
+  sun.addColorStop(0.3,'rgba(255,232,185,.45)');
+  sun.addColorStop(1,'rgba(255,232,185,0)');
+  g.fillStyle = sun; g.fillRect(280,14,120,120);
+  const tex = new THREE.CanvasTexture(c);
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const rt = pmrem.fromEquirectangular(tex);
+  tex.dispose(); pmrem.dispose();
+  return rt.texture;
+}
+scene.environment = buildEnvMap();
+scene.environmentIntensity = 0.72;
+
+/* ================================================================
+   2. LIGHTING & SKY DOME
+================================================================ */
+const sunLight = new THREE.DirectionalLight(0xfff1d8, 2.85);
+sunLight.position.set(34, 48, 26);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.set(2048, 2048);
+sunLight.shadow.camera.near = 6;
+sunLight.shadow.camera.far = 140;
+const SC = 46;
+sunLight.shadow.camera.left = -SC;
+sunLight.shadow.camera.right = SC;
+sunLight.shadow.camera.top = SC;
+sunLight.shadow.camera.bottom = -SC;
+sunLight.shadow.bias = -0.00035;
+sunLight.shadow.normalBias = 0.022;
+scene.add(sunLight);
+
+const hemiLight = new THREE.HemisphereLight(0xbcd3e8, 0x5c5347, 0.92);
+scene.add(hemiLight);
+
+const fillLight = new THREE.DirectionalLight(0x88a8c8, 0.55);
+fillLight.position.set(-30, 18, -28);
+scene.add(fillLight);
+
+{
+  const skyGeo = new THREE.SphereGeometry(185, 32, 20);
+  const pos = skyGeo.attributes.position;
+  const cols = new Float32Array(pos.count * 3);
+  const cTop = new THREE.Color(0x527aa3);
+  const cMid = new THREE.Color(0xb6c8d8);
+  const cHor = new THREE.Color(0xd9cfc0);
+  const tmp = new THREE.Color();
+  for (let i = 0; i < pos.count; i++){
+    const h = Math.max(0, pos.getY(i) / 185);
+    if (h < 0.16) tmp.lerpColors(cHor, cMid, h / 0.16);
+    else tmp.lerpColors(cMid, cTop, Math.min(1, (h - 0.16) / 0.84));
+    cols[i*3] = tmp.r; cols[i*3+1] = tmp.g; cols[i*3+2] = tmp.b;
+  }
+  skyGeo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+  const sky = new THREE.Mesh(skyGeo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false }));
+  scene.add(sky);
+
+  const disc = new THREE.Mesh(
+    new THREE.CircleGeometry(7.5, 24),
+    new THREE.MeshBasicMaterial({ color: 0xfff5dc, fog: false })
+  );
+  disc.position.copy(sunLight.position).normalize().multiplyScalar(168);
+  disc.lookAt(0,0,0);
+  scene.add(disc);
+}
+
+/* ================================================================
+   3. PROCEDURAL PBR TEXTURES
+================================================================ */
+function makeRng(seed){
+  let s = seed >>> 0;
+  return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+}
+function texCanvas(w, h, fn){
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  fn(c.getContext('2d'), w, h);
+  return c;
+}
+function wrapTex(canvas, rx, ry, srgb = true){
+  const t = new THREE.CanvasTexture(canvas);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.repeat.set(rx, ry);
+  t.anisotropy = 8;
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+const concreteTex = (() => {
+  const r = makeRng(1103);
+  const col = texCanvas(512,512,(g,w,h)=>{
+    g.fillStyle = '#7b7c7a'; g.fillRect(0,0,w,h);
+    for (let i=0;i<9000;i++){
+      const v = 104 + (r()*42|0);
+      g.fillStyle = `rgba(${v},${v},${v-2},0.16)`;
+      g.fillRect(r()*w, r()*h, 1 + r()*3, 1 + r()*3);
+    }
+    for (let i=0;i<26;i++){
+      g.fillStyle = `rgba(42,44,46,${0.05+r()*0.08})`;
+      g.beginPath(); g.arc(r()*w, r()*h, 10+r()*36, 0, Math.PI*2); g.fill();
+    }
+    g.strokeStyle = 'rgba(34,36,38,0.45)'; g.lineWidth = 2;
+    for (let x=0;x<=w;x+=128){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,h); g.stroke(); }
+    for (let y=0;y<=h;y+=128){ g.beginPath(); g.moveTo(0,y); g.lineTo(w,y); g.stroke(); }
+    g.strokeStyle = 'rgba(28,30,32,0.55)'; g.lineWidth = 1.2;
+    for (let i=0;i<9;i++){
+      let x = r()*w, y = r()*h;
+      g.beginPath(); g.moveTo(x,y);
+      for (let k=0;k<7;k++){ x += (r()-.5)*28; y += (r()-.5)*28; g.lineTo(x,y); }
+      g.stroke();
+    }
+  });
+  const bump = texCanvas(512,512,(g,w,h)=>{
+    g.fillStyle = '#808080'; g.fillRect(0,0,w,h);
+    for (let i=0;i<9000;i++){
+      const v = 96 + (r()*64|0);
+      g.fillStyle = `rgba(${v},${v},${v},0.25)`;
+      g.fillRect(r()*w, r()*h, 2, 2);
+    }
+    g.strokeStyle = '#303030'; g.lineWidth = 3;
+    for (let x=0;x<=w;x+=128){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,h); g.stroke(); }
+    for (let y=0;y<=h;y+=128){ g.beginPath(); g.moveTo(0,y); g.lineTo(w,y); g.stroke(); }
+  });
+  return { map: wrapTex(col, 16, 16, true), bump: wrapTex(bump, 16, 16, false) };
+})();
+
+const wallTex = (() => {
+  const r = makeRng(2207);
+  const col = texCanvas(512,512,(g,w,h)=>{
+    g.fillStyle = '#8a867c'; g.fillRect(0,0,w,h);
+    for (let y=0;y<h;y+=32){
+      g.fillStyle = `rgba(60,58,52,${0.08 + r()*0.08})`;
+      g.fillRect(0,y,w,31);
+      g.fillStyle = 'rgba(42,40,36,0.38)';
+      g.fillRect(0,y+31,w,1);
+    }
+    for (let i=0;i<40;i++){
+      const x = r()*w, len = 40 + r()*160;
+      const gr = g.createLinearGradient(0,0,0,len);
+      gr.addColorStop(0,'rgba(44,46,42,0.28)');
+      gr.addColorStop(1,'rgba(44,46,42,0)');
+      g.fillStyle = gr; g.fillRect(x, 0, 3+r()*8, len);
+    }
+    for (let i=0;i<5500;i++){
+      const v = 110 + (r()*45|0);
+      g.fillStyle = `rgba(${v},${v-3},${v-8},0.14)`;
+      g.fillRect(r()*w, r()*h, 2, 2);
+    }
+  });
+  return wrapTex(col, 4, 2, true);
+})();
+
+function makeCorrugatedBump(){
+  const r = makeRng(3311);
+  const c = texCanvas(256,256,(g,w,h)=>{
+    for (let x=0;x<w;x++){
+      const v = Math.round(128 + 96 * Math.sin((x / w) * Math.PI * 2 * 14));
+      g.fillStyle = `rgb(${v},${v},${v})`;
+      g.fillRect(x,0,1,h);
+    }
+    for (let i=0;i<1800;i++){
+      const v = 110 + (r()*36|0);
+      g.fillStyle = `rgba(${v},${v},${v},0.22)`;
+      g.fillRect(r()*w, r()*h, 2, 4);
+    }
+  });
+  return wrapTex(c, 2, 1, false);
+}
+const corrBump = makeCorrugatedBump();
+
+function makeContainerAlbedo(baseHex, stripeHex, seed, code){
+  const r = makeRng(seed);
+  const c = texCanvas(512,256,(g,w,h)=>{
+    g.fillStyle = baseHex; g.fillRect(0,0,w,h);
+    for (let x=0;x<w;x+=12){
+      g.fillStyle = 'rgba(255,255,255,0.05)'; g.fillRect(x,0,4,h);
+      g.fillStyle = 'rgba(0,0,0,0.14)'; g.fillRect(x+6,0,5,h);
+    }
+    g.fillStyle = stripeHex; g.fillRect(0, 34, w, 16);
+    for (let i=0;i<48;i++){
+      g.fillStyle = `rgba(92,46,22,${0.08 + r()*0.22})`;
+      g.fillRect(r()*w, r()*h, 4+r()*22, 2+r()*12);
+    }
+    g.fillStyle = 'rgba(245,242,235,0.78)';
+    g.font = 'bold 20px monospace';
+    g.fillText(code, 28, 92);
+    g.font = 'bold 12px monospace';
+    g.fillText('MAX GROSS 30,480 KG', 28, 112);
+    g.strokeStyle = 'rgba(245,242,235,0.55)'; g.lineWidth = 2;
+    g.strokeRect(22, 70, 195, 52);
+  });
+  return wrapTex(c, 1, 1, true);
+}
+
+const woodTex = (() => {
+  const r = makeRng(4419);
+  const c = texCanvas(256,256,(g,w,h)=>{
+    g.fillStyle = '#9b7748'; g.fillRect(0,0,w,h);
+    for (let y=0;y<h;y+=42){
+      g.fillStyle = `rgba(70,48,24,${0.1+r()*0.12})`;
+      g.fillRect(0,y,w,40);
+      g.fillStyle = '#3d2a15'; g.fillRect(0,y+40,w,2);
+    }
+    for (let i=0;i<1400;i++){
+      g.fillStyle = `rgba(55,36,16,${0.06+r()*0.1})`;
+      g.fillRect(r()*w, r()*h, 14+r()*36, 1.5);
+    }
+    g.fillStyle = '#2d2f33';
+    for (let y=10;y<h;y+=42){
+      for (const x of [14, w-14]){ g.beginPath(); g.arc(x, y, 2.2, 0, Math.PI*2); g.fill(); }
+    }
+  });
+  return wrapTex(c, 1, 1, true);
+})();
+
+const hazardTex = (() => {
+  const c = texCanvas(256,64,(g,w,h)=>{
+    g.fillStyle = '#d89b28'; g.fillRect(0,0,w,h);
+    g.fillStyle = '#191b1e';
+    for (let x=-64;x<w+64;x+=48){
+      g.beginPath();
+      g.moveTo(x,h); g.lineTo(x+24,h); g.lineTo(x+56,0); g.lineTo(x+32,0);
+      g.closePath(); g.fill();
+    }
+  });
+  return wrapTex(c, 6, 1, true);
+})();
+
+const grateTex = (() => {
+  const c = texCanvas(128,128,(g,w,h)=>{
+    g.fillStyle = '#393e44'; g.fillRect(0,0,w,h);
+    g.fillStyle = '#181b1f';
+    for (let y=4;y<h;y+=16) for (let x=4;x<w;x+=16) g.fillRect(x,y,10,10);
+    g.fillStyle = 'rgba(255,255,255,0.08)';
+    for (let y=0;y<h;y+=16) g.fillRect(0,y,w,2);
+  });
+  return wrapTex(c, 4, 4, true);
+})();
+
+/* ================================================================
+   4. SHARED MATERIALS
+================================================================ */
+const MAT = {
+  ground   : new THREE.MeshStandardMaterial({ map: concreteTex.map, bumpMap: concreteTex.bump, bumpScale: 0.03, roughness: 0.92, metalness: 0.04 }),
+  wall     : new THREE.MeshStandardMaterial({ map: wallTex, bumpMap: concreteTex.bump, bumpScale: 0.02, roughness: 0.88, metalness: 0.05 }),
+  steel    : new THREE.MeshStandardMaterial({ color: 0x3b4148, roughness: 0.46, metalness: 0.82 }),
+  steelDark: new THREE.MeshStandardMaterial({ color: 0x23272c, roughness: 0.52, metalness: 0.78 }),
+  grate    : new THREE.MeshStandardMaterial({ map: grateTex, roughness: 0.55, metalness: 0.75 }),
+  crate    : new THREE.MeshStandardMaterial({ map: woodTex, bumpMap: woodTex, bumpScale: 0.02, roughness: 0.84, metalness: 0.04 }),
+  hazard   : new THREE.MeshStandardMaterial({ map: hazardTex, roughness: 0.65, metalness: 0.18 }),
+  sandbag  : new THREE.MeshStandardMaterial({ color: 0x8f8368, roughness: 0.95, metalness: 0.02 }),
+  barrelRed: new THREE.MeshStandardMaterial({ color: 0x8f2d26, roughness: 0.48, metalness: 0.55 }),
+  barrelBlu: new THREE.MeshStandardMaterial({ color: 0x2b4e6e, roughness: 0.50, metalness: 0.52 }),
+  glass    : new THREE.MeshPhysicalMaterial({ color: 0xa8c8dc, roughness: 0.12, metalness: 0.05, transparent: true, opacity: 0.42 }),
+  lampGlow : new THREE.MeshStandardMaterial({ color: 0xfff0cc, emissive: 0xffcf7a, emissiveIntensity: 2.2, roughness: 0.2 }),
+  contRust : new THREE.MeshStandardMaterial({ map: makeContainerAlbedo('#7d3528','#d99a2b',501,'HLXU 482910'), bumpMap: corrBump, bumpScale: 0.035, roughness: 0.64, metalness: 0.48 }),
+  contBlue : new THREE.MeshStandardMaterial({ map: makeContainerAlbedo('#294964','#e6e1d6',602,'MSKU 904117'), bumpMap: corrBump, bumpScale: 0.035, roughness: 0.60, metalness: 0.50 }),
+  contOlive: new THREE.MeshStandardMaterial({ map: makeContainerAlbedo('#42523a','#d4a438',703,'USAF 331804'), bumpMap: corrBump, bumpScale: 0.035, roughness: 0.66, metalness: 0.45 }),
+  contTeal : new THREE.MeshStandardMaterial({ map: makeContainerAlbedo('#2c5856','#e27d38',804,'TRLU 617295'), bumpMap: corrBump, bumpScale: 0.035, roughness: 0.62, metalness: 0.48 }),
+};
+
+setBoot(58,'Constructing Sector 7 industrial compound…');
+
+/* ================================================================
+   5. LEVEL GEOMETRY & COLLISION
+================================================================ */
+const levelGroup = new THREE.Group();
+scene.add(levelGroup);
+
+const colliders = [];
+const worldSolid = [];
+const walkSurfaces = [];
+const coverSpots = [];
+const explosiveBarrels = [];
+
+function addBox(x, y, z, w, h, d, mat, opts = {}){
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  m.position.set(x, y + h * 0.5, z);
+  if (opts.ry) m.rotation.y = opts.ry;
+  m.castShadow = opts.cast !== false;
+  m.receiveShadow = opts.recv !== false;
+  levelGroup.add(m);
+  if (opts.solid !== false){
+    m.updateMatrixWorld();
+    const box = new THREE.Box3().setFromObject(m);
+    colliders.push(box);
+    worldSolid.push(m);
+    if (opts.walkable){
+      walkSurfaces.push({ minX: box.min.x, maxX: box.max.x, minZ: box.min.z, maxZ: box.max.z, y: box.max.y });
+    }
+  }
+  return m;
+}
+
+function addContainer(x, y, z, rotY, mat){
+  const len = 7.4, wid = 2.6, hei = 2.75;
+  const c = addBox(x, y, z, rotY ? wid : len, hei, rotY ? len : wid, mat, { walkable: true });
+  const rLen = rotY ? wid + 0.06 : len + 0.06;
+  const rWid = rotY ? len + 0.06 : wid + 0.06;
+  const rail1 = new THREE.Mesh(new THREE.BoxGeometry(rLen, 0.14, 0.14), MAT.steelDark);
+  rail1.position.set(x, y + hei - 0.07, z + rWid*0.5 - 0.07);
+  const rail2 = rail1.clone(); rail2.position.z = z - rWid*0.5 + 0.07;
+  const rail3 = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, rWid), MAT.steelDark);
+  rail3.position.set(x + rLen*0.5 - 0.07, y + hei - 0.07, z);
+  const rail4 = rail3.clone(); rail4.position.x = x - rLen*0.5 + 0.07;
+  levelGroup.add(rail1, rail2, rail3, rail4);
+  return c;
+}
+
+function addCrateStack(x, y, z, tiers = 2){
+  addBox(x, y, z, 1.35, 1.25, 1.35, MAT.crate, { walkable: true });
+  if (tiers > 1){
+    addBox(x + 0.08, y + 1.25, z - 0.05, 1.05, 0.95, 1.05, MAT.crate, { walkable: true });
+  }
+}
+
+function addSandbagWall(x, y, z, rotY){
+  const w = rotY ? 0.85 : 2.9, d = rotY ? 2.9 : 0.85;
+  addBox(x, y, z, w, 1.02, d, MAT.sandbag, { walkable: false });
+  addBox(x, y + 1.02, z, w * 0.92, 0.10, d * 0.92, MAT.hazard, { solid: false });
+}
+
+function addBarrel(x, y, z, explosive = false){
+  const g = new THREE.Group();
+  g.position.set(x, y, z);
+  const mat = explosive ? MAT.barrelRed : MAT.barrelBlu;
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 1.02, 16), mat);
+  body.position.y = 0.51; body.castShadow = true; body.receiveShadow = true;
+  g.add(body);
+  for (const ry of [0.22, 0.51, 0.80]){
+    const rib = new THREE.Mesh(new THREE.TorusGeometry(0.348, 0.018, 6, 18), MAT.steelDark);
+    rib.rotation.x = Math.PI * 0.5; rib.position.y = ry;
+    g.add(rib);
+  }
+  levelGroup.add(g);
+  const hit = addBox(x, y, z, 0.68, 1.02, 0.68, mat, { cast: false, recv: false });
+  hit.visible = false;
+  if (explosive){
+    explosiveBarrels.push({ mesh: g, hitMesh: hit, pos: new THREE.Vector3(x, y + 0.5, z), hp: 45, blown: false });
+  }
+}
+
+function addRamp(x1, y1, z1, x2, y2, z2, width){
+  const dx = x2 - x1, dy = y2 - y1, dz = z2 - z1;
+  const horiz = Math.hypot(dx, dz);
+  const len = Math.hypot(horiz, dy);
+  const pitch = Math.atan2(dy, horiz);
+  const yaw = Math.atan2(dx, dz);
+
+  const ramp = new THREE.Mesh(new THREE.BoxGeometry(width, 0.18, len), MAT.grate);
+  ramp.position.set((x1+x2)*0.5, (y1+y2)*0.5 - 0.09, (z1+z2)*0.5);
+  ramp.rotation.order = 'YXZ';
+  ramp.rotation.y = yaw;
+  ramp.rotation.x = -pitch;
+  ramp.castShadow = true; ramp.receiveShadow = true;
+  levelGroup.add(ramp);
+
+  for (const side of [-1, 1]){
+    const nx = Math.cos(yaw) * side * (width*0.5 - 0.05);
+    const nz = -Math.sin(yaw) * side * (width*0.5 - 0.05);
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.95, len), MAT.steel);
+    rail.position.set((x1+x2)*0.5 + nx, (y1+y2)*0.5 + 0.45, (z1+z2)*0.5 + nz);
+    rail.rotation.order = 'YXZ'; rail.rotation.y = yaw; rail.rotation.x = -pitch;
+    levelGroup.add(rail);
+  }
+
+  const steps = Math.max(8, Math.ceil(len / 0.42));
+  const sw = Math.abs(Math.sin(yaw)) * (len / steps + 0.35) + Math.abs(Math.cos(yaw)) * width;
+  const sd = Math.abs(Math.cos(yaw)) * (len / steps + 0.35) + Math.abs(Math.sin(yaw)) * width;
+  for (let i = 0; i <= steps; i++){
+    const t = i / steps;
+    const sx = x1 + dx * t, sy = y1 + dy * t, sz = z1 + dz * t;
+    walkSurfaces.push({ minX: sx - sw*0.5, maxX: sx + sw*0.5, minZ: sz - sd*0.5, maxZ: sz + sd*0.5, y: sy });
+  }
+}
+
+/* Ground slab */
+{
+  const gnd = new THREE.Mesh(new THREE.PlaneGeometry(86, 86), MAT.ground);
+  gnd.rotation.x = -Math.PI * 0.5;
+  gnd.receiveShadow = true;
+  levelGroup.add(gnd);
+  walkSurfaces.push({ minX: -43, maxX: 43, minZ: -43, maxZ: 43, y: 0 });
+}
+
+/* Perimeter compound walls */
+addBox(  0, 0, -41, 82, 7.5, 1.4, MAT.wall);
+addBox(  0, 0,  41, 82, 7.5, 1.4, MAT.wall);
+addBox(-41, 0,   0, 1.4, 7.5, 82, MAT.wall);
+addBox( 41, 0,   0, 1.4, 7.5, 82, MAT.wall);
+
+for (let i = -32; i <= 32; i += 16){
+  addBox(i, 0, -40.1, 0.7, 7.5, 0.6, MAT.steel);
+  addBox(i, 0,  40.1, 0.7, 7.5, 0.6, MAT.steel);
+  addBox(-40.1, 0, i, 0.6, 7.5, 0.7, MAT.steel);
+  addBox( 40.1, 0, i, 0.6, 7.5, 0.7, MAT.steel);
+}
+
+/* Yard lane markings */
+for (let z = -30; z <= 30; z += 12){
+  addBox(-11.5, 0.005, z, 0.22, 0.01, 5.5, MAT.hazard, { solid: false, cast: false });
+  addBox( 11.5, 0.005, z, 0.22, 0.01, 5.5, MAT.hazard, { solid: false, cast: false });
+}
+
+/* Main Shipping Containers */
+addContainer(-17.5, 0, -14.0, 0, MAT.contRust);
+addContainer(-17.5, 2.75, -14.0, 0, MAT.contBlue);
+addContainer(-25.6, 0, -14.0, 0, MAT.contOlive);
+
+addContainer( 17.5, 0, -15.5, 0, MAT.contBlue);
+addContainer( 25.6, 0, -15.5, 0, MAT.contTeal);
+addContainer( 25.6, 2.75, -15.5, 0, MAT.contRust);
+
+addContainer(-21.0, 0,  13.5, 1, MAT.contTeal);
+addContainer(-13.8, 0,  16.5, 0, MAT.contOlive);
+
+addContainer( 19.5, 0,  14.0, 1, MAT.contRust);
+addContainer( 12.8, 0,  18.0, 0, MAT.contBlue);
+
+/* Central Warehouse Pavilion & Overlook Catwalk */
+for (const px of [-6.4, 6.4]){
+  for (const pz of [-6.4, 6.4]){
+    addBox(px, 0, pz, 0.55, 7.8, 0.55, MAT.steel);
+  }
+}
+addBox(0, 7.5, 0, 14.4, 0.45, 14.4, MAT.steelDark, { walkable: false });
+addBox(0, 8.0, 0, 10.0, 0.35, 10.0, MAT.steel, { walkable: false });
+for (const lx of [-4.2, 4.2]){
+  for (const lz of [-4.2, 4.2]){
+    const fix = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.12, 0.35), MAT.lampGlow);
+    fix.position.set(lx, 7.42, lz);
+    levelGroup.add(fix);
+  }
+}
+
+addBox(0, 3.25, -5.2, 13.4, 0.22, 3.2, MAT.grate, { walkable: true });
+addBox(0, 3.47, -6.72, 13.4, 1.02, 0.14, MAT.steel);
+addBox(-4.2, 3.47, -3.68, 5.0, 1.02, 0.14, MAT.steel);
+addBox( 4.2, 3.47, -3.68, 5.0, 1.02, 0.14, MAT.steel);
+
+addRamp(-11.4, 0, -5.2, -6.7, 3.47, -5.2, 2.1);
+addRamp( 11.4, 0, -5.2,  6.7, 3.47, -5.2, 2.1);
+
+/* North Guardhouse & Sniper Tower */
+addBox(0, 0, -31.5, 12.0, 3.6, 5.2, MAT.wall, { walkable: true });
+addBox(0, 3.6, -29.0, 12.0, 1.05, 0.25, MAT.steel);
+addBox(0, 3.6, -34.0, 12.0, 1.05, 0.25, MAT.steel);
+addBox(-5.88, 3.6, -31.5, 0.25, 1.05, 5.0, MAT.steel);
+addBox( 5.88, 3.6, -31.5, 0.25, 1.05, 5.0, MAT.steel);
+addRamp(9.8, 0, -31.5, 6.0, 3.6, -31.5, 2.0);
+addBox(0, 0.01, -28.6, 3.2, 0.02, 0.9, MAT.hazard, { solid: false, cast: false });
+
+/* Tactical Cover Clusters, Crates, Sandbags & Explosive Barrels */
+addSandbagWall(-4.2, 0,  4.8, 0);
+addSandbagWall( 4.2, 0,  4.8, 0);
+addSandbagWall( 0.0, 0, -15.5, 0);
+addSandbagWall(-9.8, 0, -1.5, 1);
+addSandbagWall( 9.8, 0, -1.5, 1);
+addSandbagWall(-5.5, 0,  22.5, 0);
+addSandbagWall( 5.5, 0,  22.5, 0);
+
+addCrateStack(-3.2, 0, -1.8, 2);
+addCrateStack( 3.4, 0,  1.6, 1);
+addCrateStack(-10.5, 0, 8.8, 2);
+addCrateStack( 10.2, 0, 8.4, 2);
+addCrateStack(-13.2, 0, -22.5, 2);
+addCrateStack( 13.6, 0, -22.0, 1);
+addCrateStack(  0.0, 0,  14.2, 2);
+addCrateStack(-28.5, 0,   2.5, 2);
+addCrateStack( 28.5, 0,   2.0, 2);
+addCrateStack(  0.0, 3.47, -5.4, 1);
+
+addBarrel(-13.4, 0, -13.2, true);
+addBarrel(-12.6, 0, -13.6, false);
+addBarrel( 13.4, 0, -14.8, true);
+addBarrel( -1.8, 0,  -1.6, true);
+addBarrel(  9.4, 0,   9.6, true);
+addBarrel( -9.6, 0,  10.2, false);
+addBarrel( 15.6, 0,  14.4, true);
+addBarrel(-17.2, 0,  13.8, true);
+addBarrel(  6.8, 0, -27.8, true);
+
+/* Overhead Gantry Crane */
+addBox(-31.5, 0, -3.5, 1.1, 11.5, 1.1, MAT.steel);
+addBox( 31.5, 0, -3.5, 1.1, 11.5, 1.1, MAT.steel);
+addBox(  0.0, 11.0, -3.5, 64.5, 0.85, 1.2, MAT.hazard);
+addBox(  8.5, 10.1, -3.5, 2.4, 0.9, 1.6, MAT.steelDark);
+
+/* Tactical Cover Nodes */
+[
+  [-4.2, 0,  6.2], [ 4.2, 0,  6.2], [ 0.0, 0, -14.0],
+  [-11.2,0, -1.5], [11.2, 0, -1.5], [-13.2,0, -11.5],
+  [ 13.2,0,-13.0], [-10.5,0, 10.4], [ 10.2,0,  10.0],
+  [ -5.5,0, 24.0], [ 5.5, 0, 24.0], [  0.0,0,  15.8],
+  [-22.0,0,  6.5], [22.0, 0,  6.5], [-13.2,0, -20.5],
+  [ 13.6,0,-20.0], [-3.8, 3.47,-4.6],[ 3.8,3.47,-4.6],
+  [ -3.2,3.6,-30.2],[ 3.2, 3.6,-30.2]
+].forEach(([x,y,z]) => coverSpots.push(new THREE.Vector3(x,y,z)));
+
+/* ================================================================
+   6. PROCEDURAL WEB AUDIO ENGINE
+================================================================ */
+class SoundEngine {
+  constructor(){
+    this.ctx = null;
+    this.noiseBuf = null;
+    this.master = null;
+  }
+  init(){
+    if (this.ctx){
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      return;
+    }
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    this.ctx = new AC();
+    this.master = this.ctx.createGain();
+    this.master.gain.value = 0.62;
+    this.master.connect(this.ctx.destination);
+
+    const len = this.ctx.sampleRate * 2;
+    this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+    const d = this.noiseBuf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  }
+  _pan(pan = 0){
+    if (!this.ctx.createStereoPanner) return this.master;
+    const p = this.ctx.createStereoPanner();
+    p.pan.value = Math.max(-1, Math.min(1, pan));
+    p.connect(this.master);
+    return p;
+  }
+  shot(isRifle = true, pan = 0, dist = 0){
+    if (!this.ctx || !this.noiseBuf) return;
+    const t = this.ctx.currentTime;
+    const att = dist > 0 ? Math.max(0.06, 1 / (1 + dist * 0.055)) : 1;
+    const out = this._pan(pan);
+
+    const n = this.ctx.createBufferSource();
+    n.buffer = this.noiseBuf;
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(isRifle ? 1350 : 1750, t);
+    bp.frequency.exponentialRampToValueAtTime(240, t + (isRifle ? 0.14 : 0.10));
+    bp.Q.value = 0.85;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime((isRifle ? 0.85 : 0.65) * att, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + (isRifle ? 0.18 : 0.13));
+    n.connect(bp); bp.connect(g); g.connect(out);
+    n.start(t); n.stop(t + 0.22);
+
+    const osc = this.ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(isRifle ? 165 : 210, t);
+    osc.frequency.exponentialRampToValueAtTime(42, t + 0.09);
+    const og = this.ctx.createGain();
+    og.gain.setValueAtTime((isRifle ? 0.72 : 0.55) * att, t);
+    og.gain.exponentialRampToValueAtTime(0.001, t + 0.10);
+    osc.connect(og); og.connect(out);
+    osc.start(t); osc.stop(t + 0.11);
+
+    if (dist === 0){
+      const tn = this.ctx.createBufferSource();
+      tn.buffer = this.noiseBuf;
+      const lp = this.ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 620;
+      const tg = this.ctx.createGain();
+      tg.gain.setValueAtTime(0.16, t + 0.03);
+      tg.gain.exponentialRampToValueAtTime(0.001, t + 0.42);
+      tn.connect(lp); lp.connect(tg); tg.connect(out);
+      tn.start(t + 0.02); tn.stop(t + 0.44);
+    }
+  }
+  dryFire(){
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const o = this.ctx.createOscillator();
+    o.type = 'square'; o.frequency.setValueAtTime(920, t); o.frequency.exponentialRampToValueAtTime(340, t + 0.03);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.22, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+    o.connect(g); g.connect(this.master); o.start(t); o.stop(t + 0.04);
+  }
+  reload(stage = 0){
+    if (!this.ctx || !this.noiseBuf) return;
+    const t = this.ctx.currentTime;
+    const freq = stage === 0 ? 520 : stage === 1 ? 740 : 1180;
+    const o = this.ctx.createOscillator();
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(freq, t);
+    o.frequency.exponentialRampToValueAtTime(freq * 0.55, t + 0.06);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.28, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+    o.connect(g); g.connect(this.master); o.start(t); o.stop(t + 0.08);
+  }
+  hitConfirm(headshot = false){
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const o = this.ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(headshot ? 1960 : 1280, t);
+    o.frequency.exponentialRampToValueAtTime(headshot ? 2640 : 880, t + 0.055);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(headshot ? 0.34 : 0.22, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.065);
+    o.connect(g); g.connect(this.master); o.start(t); o.stop(t + 0.07);
+  }
+  impactFlesh(pan = 0, dist = 2){
+    if (!this.ctx || !this.noiseBuf) return;
+    const t = this.ctx.currentTime;
+    const att = Math.max(0.15, 1 / (1 + dist * 0.08));
+    const n = this.ctx.createBufferSource(); n.buffer = this.noiseBuf;
+    const lp = this.ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 380;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.45 * att, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+    n.connect(lp); lp.connect(g); g.connect(this._pan(pan));
+    n.start(t); n.stop(t + 0.09);
+  }
+  explosion(pan = 0, dist = 10){
+    if (!this.ctx || !this.noiseBuf) return;
+    const t = this.ctx.currentTime;
+    const att = Math.max(0.12, 1 / (1 + dist * 0.035));
+    const out = this._pan(pan);
+    const n = this.ctx.createBufferSource(); n.buffer = this.noiseBuf;
+    const lp = this.ctx.createBiquadFilter();
+    lp.type = 'lowpass'; lp.frequency.setValueAtTime(680, t); lp.frequency.exponentialRampToValueAtTime(75, t + 0.85);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(1.1 * att, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.95);
+    n.connect(lp); lp.connect(g); g.connect(out); n.start(t); n.stop(t + 1.0);
+
+    const o = this.ctx.createOscillator();
+    o.type = 'sine'; o.frequency.setValueAtTime(95, t); o.frequency.exponentialRampToValueAtTime(24, t + 0.55);
+    const og = this.ctx.createGain();
+    og.gain.setValueAtTime(0.95 * att, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+    o.connect(og); og.connect(out); o.start(t); o.stop(t + 0.62);
+  }
+  footstep(sprint = false){
+    if (!this.ctx || !this.noiseBuf) return;
+    const t = this.ctx.currentTime;
+    const n = this.ctx.createBufferSource(); n.buffer = this.noiseBuf;
+    const bp = this.ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = sprint ? 290 : 230; bp.Q.value = 1.4;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(sprint ? 0.14 : 0.08, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.065);
+    n.connect(bp); bp.connect(g); g.connect(this.master); n.start(t); n.stop(t + 0.07);
+  }
+  hurt(){
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const o = this.ctx.createOscillator();
+    o.type = 'sawtooth'; o.frequency.setValueAtTime(135, t); o.frequency.exponentialRampToValueAtTime(52, t + 0.16);
+    const lp = this.ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 340;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.42, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+    o.connect(lp); lp.connect(g); g.connect(this.master); o.start(t); o.stop(t + 0.19);
+  }
+  zombieGroan(pan = 0, dist = 8){
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    const att = Math.max(0.08, 1 / (1 + dist * 0.07));
+    const o = this.ctx.createOscillator();
+    o.type = 'sawtooth';
+    const base = 78 + Math.random() * 26;
+    o.frequency.setValueAtTime(base, t);
+    o.frequency.linearRampToValueAtTime(base * 0.72, t + 0.38);
+    const lp = this.ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 420;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.24 * att, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.42);
+    o.connect(lp); lp.connect(g); g.connect(this._pan(pan));
+    o.start(t); o.stop(t + 0.44);
+  }
+}
+const SFX = new SoundEngine();
+
+/* ================================================================
+   7. VIEWMODEL WEAPONS & FIRST-PERSON ARMS
+================================================================ */
+const weaponRoot = new THREE.Group();
+camera.add(weaponRoot);
+
+const WEAPONS = [
+  {
+    id: 'rifle', name: 'MK-18 CARBINE',
+    magSize: 30, reserveMax: 120, mag: 30, reserve: 120,
+    rpm: 640, auto: true, damage: 34, headMult: 2.35,
+    reloadTime: 1.85, adsFov: 52,
+    hipPos: new THREE.Vector3(0.22, -0.21, -0.44),
+    adsPos: new THREE.Vector3(0.0,  -0.132, -0.34),
+    recoilUp: 0.021, recoilSide: 0.009, spreadHip: 0.016, spreadAds: 0.0022
+  },
+  {
+    id: 'pistol', name: 'P226 SIDEARM',
+    magSize: 15, reserveMax: 60, mag: 15, reserve: 60,
+    rpm: 420, auto: false, damage: 28, headMult: 2.45,
+    reloadTime: 1.35, adsFov: 60,
+    hipPos: new THREE.Vector3(0.21, -0.22, -0.40),
+    adsPos: new THREE.Vector3(0.0,  -0.145, -0.32),
+    recoilUp: 0.028, recoilSide: 0.007, spreadHip: 0.013, spreadAds: 0.0028
+  }
+];
+
+const W_MAT = {
+  receiver: new THREE.MeshStandardMaterial({ color: 0x1e2126, roughness: 0.36, metalness: 0.86 }),
+  barrel  : new THREE.MeshStandardMaterial({ color: 0x141619, roughness: 0.28, metalness: 0.92 }),
+  tan     : new THREE.MeshStandardMaterial({ color: 0x6f6249, roughness: 0.62, metalness: 0.25 }),
+  grip    : new THREE.MeshStandardMaterial({ color: 0x181a1d, roughness: 0.85, metalness: 0.12 }),
+  lens    : new THREE.MeshBasicMaterial({ color: 0xff4b3e }),
+  sleeve  : new THREE.MeshStandardMaterial({ color: 0x3b4636, roughness: 0.88, metalness: 0.04 }),
+  glove   : new THREE.MeshStandardMaterial({ color: 0x222426, roughness: 0.78, metalness: 0.12 }),
+};
+
+function buildRifleMesh(){
+  const g = new THREE.Group();
+  const add = (geo, mat, x, y, z, rx=0, ry=0, rz=0) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x,y,z); m.rotation.set(rx,ry,rz);
+    g.add(m); return m;
+  };
+  add(new THREE.BoxGeometry(0.056, 0.072, 0.28), W_MAT.receiver, 0, 0, 0);
+  add(new THREE.BoxGeometry(0.060, 0.014, 0.44), W_MAT.receiver, 0, 0.042, -0.08);
+  add(new THREE.BoxGeometry(0.054, 0.062, 0.24), W_MAT.tan, 0, 0.004, -0.26);
+  const brl = add(new THREE.CylinderGeometry(0.011, 0.012, 0.24, 12), W_MAT.barrel, 0, 0.012, -0.46, Math.PI*0.5);
+  add(new THREE.CylinderGeometry(0.016, 0.015, 0.065, 12), W_MAT.barrel, 0, 0.012, -0.58, Math.PI*0.5);
+  const mag = add(new THREE.BoxGeometry(0.042, 0.165, 0.078), W_MAT.grip, 0, -0.105, -0.05, 0.16);
+  add(new THREE.BoxGeometry(0.044, 0.11, 0.052), W_MAT.grip, 0, -0.075, 0.08, -0.28);
+  add(new THREE.BoxGeometry(0.048, 0.085, 0.22), W_MAT.tan, 0, -0.008, 0.24);
+  add(new THREE.BoxGeometry(0.052, 0.098, 0.024), W_MAT.grip, 0, -0.012, 0.35);
+  add(new THREE.BoxGeometry(0.048, 0.044, 0.085), W_MAT.receiver, 0, 0.070, -0.02);
+  add(new THREE.BoxGeometry(0.042, 0.032, 0.005), W_MAT.glass, 0, 0.074, -0.02);
+  const dot = add(new THREE.SphereGeometry(0.0032, 8, 8), W_MAT.lens, 0, 0.074, -0.02);
+  add(new THREE.BoxGeometry(0.036, 0.055, 0.045), W_MAT.grip, 0, -0.052, -0.25);
+
+  add(new THREE.CylinderGeometry(0.036, 0.044, 0.34, 10), W_MAT.sleeve, 0.08, -0.15, 0.24, 1.12, 0, -0.22);
+  add(new THREE.BoxGeometry(0.058, 0.052, 0.075), W_MAT.glove, 0.01, -0.055, 0.075);
+  add(new THREE.CylinderGeometry(0.034, 0.042, 0.38, 10), W_MAT.sleeve, -0.13, -0.16, 0.02, 1.26, 0.34, 0.26);
+  add(new THREE.BoxGeometry(0.062, 0.048, 0.082), W_MAT.glove, -0.015, -0.035, -0.24);
+
+  const muzzle = new THREE.Object3D();
+  muzzle.position.set(0, 0.012, -0.62);
+  g.add(muzzle);
+  return { group: g, mag, muzzle, dot, brl };
+}
+
+function buildPistolMesh(){
+  const g = new THREE.Group();
+  const add = (geo, mat, x, y, z, rx=0, ry=0, rz=0) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x,y,z); m.rotation.set(rx,ry,rz);
+    g.add(m); return m;
+  };
+  const slide = add(new THREE.BoxGeometry(0.038, 0.042, 0.22), W_MAT.receiver, 0, 0.022, -0.04);
+  add(new THREE.BoxGeometry(0.034, 0.026, 0.20), W_MAT.barrel, 0, -0.008, -0.035);
+  add(new THREE.CylinderGeometry(0.008, 0.008, 0.04, 10), W_MAT.barrel, 0, 0.020, -0.16, Math.PI*0.5);
+  add(new THREE.BoxGeometry(0.034, 0.115, 0.048), W_MAT.grip, 0, -0.065, 0.035, -0.24);
+  const mag = add(new THREE.BoxGeometry(0.028, 0.10, 0.038), W_MAT.barrel, 0, -0.072, 0.038, -0.24);
+  add(new THREE.BoxGeometry(0.006, 0.010, 0.012), W_MAT.lens, 0, 0.047, -0.135);
+  add(new THREE.BoxGeometry(0.016, 0.009, 0.010), W_MAT.receiver, 0, 0.046, 0.055);
+
+  add(new THREE.CylinderGeometry(0.034, 0.042, 0.34, 10), W_MAT.sleeve, 0.07, -0.15, 0.22, 1.15, 0, -0.18);
+  add(new THREE.CylinderGeometry(0.033, 0.040, 0.34, 10), W_MAT.sleeve, -0.08, -0.16, 0.20, 1.15, 0, 0.20);
+  add(new THREE.BoxGeometry(0.066, 0.055, 0.075), W_MAT.glove, 0, -0.055, 0.035);
+
+  const muzzle = new THREE.Object3D();
+  muzzle.position.set(0, 0.020, -0.19);
+  g.add(muzzle);
+  return { group: g, slide, mag, muzzle };
+}
+
+const rifleView  = buildRifleMesh();
+const pistolView = buildPistolMesh();
+pistolView.group.visible = false;
+weaponRoot.add(rifleView.group, pistolView.group);
+
+const muzzleFlashLight = new THREE.PointLight(0xffb44c, 0, 9, 2);
+camera.add(muzzleFlashLight);
+const muzzleFlashPlane = new THREE.Mesh(
+  new THREE.PlaneGeometry(0.24, 0.24),
+  new THREE.MeshBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide })
+);
+camera.add(muzzleFlashPlane);
+
+/* ================================================================
+   8. PARTICLE & TRACER POOLS
+================================================================ */
+function makeParticlePool(count, size, color, opacity = 0.9){
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(count * 3);
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const mat = new THREE.PointsMaterial({ color, size, transparent: true, opacity, depthWrite: false, sizeAttenuation: true });
+  const pts = new THREE.Points(geo, mat);
+  pts.frustumCulled = false;
+  scene.add(pts);
+  const items = Array.from({ length: count }, () => ({ active: false, x:0, y:-999, z:0, vx:0, vy:0, vz:0, life:0, max:1, grav:0 }));
+  for (let i = 0; i < count; i++) pos[i*3+1] = -999;
+  return {
+    spawn(x, y, z, vx, vy, vz, life, grav = 9.8){
+      for (let i = 0; i < count; i++){
+        const p = items[i];
+        if (!p.active){
+          p.active = true; p.x = x; p.y = y; p.z = z; p.vx = vx; p.vy = vy; p.vz = vz;
+          p.life = life; p.max = life; p.grav = grav;
+          pos[i*3] = x; pos[i*3+1] = y; pos[i*3+2] = z;
+          geo.attributes.position.needsUpdate = true;
+          return;
+        }
+      }
+    },
+    update(dt){
+      let dirty = false;
+      for (let i = 0; i < count; i++){
+        const p = items[i];
+        if (!p.active) continue;
+        p.life -= dt;
+        if (p.life <= 0){
+          p.active = false; pos[i*3+1] = -999; dirty = true; continue;
+        }
+        p.vy -= p.grav * dt;
+        p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+        if (p.y < 0.02){ p.y = 0.02; p.vy *= -0.25; p.vx *= 0.6; p.vz *= 0.6; }
+        pos[i*3] = p.x; pos[i*3+1] = p.y; pos[i*3+2] = p.z;
+        dirty = true;
+      }
+      if (dirty) geo.attributes.position.needsUpdate = true;
+    }
+  };
+}
+
+const sparkPool = makeParticlePool(90, 0.09, 0xffc864, 0.95);
+const bloodPool = makeParticlePool(80, 0.11, 0x7d1212, 0.92);
+const smokePool = makeParticlePool(70, 0.42, 0xb8b4ac, 0.42);
+
+const tracers = [];
+const tracerMat = new THREE.MeshBasicMaterial({ color: 0xffe29a, transparent: true, opacity: 0.85, depthWrite: false });
+const tracerGeo = new THREE.CylinderGeometry(0.011, 0.011, 1, 6);
+tracerGeo.rotateX(Math.PI * 0.5);
+for (let i = 0; i < 24; i++){
+  const m = new THREE.Mesh(tracerGeo, tracerMat);
+  m.visible = false;
+  scene.add(m);
+  tracers.push({ mesh: m, start: new THREE.Vector3(), end: new THREE.Vector3(), t: 0, dur: 0.06 });
+}
+function spawnTracer(from, to){
+  const tr = tracers.find(x => !x.mesh.visible) || tracers[0];
+  tr.start.copy(from); tr.end.copy(to); tr.t = 0;
+  const dist = from.distanceTo(to);
+  tr.dur = Math.max(0.035, Math.min(0.09, dist / 420));
+  tr.mesh.position.copy(from).lerp(to, 0.5);
+  tr.mesh.lookAt(to);
+  tr.mesh.scale.set(1, 1, Math.min(dist, 5.5));
+  tr.mesh.visible = true;
+}
+
+const decals = [];
+const decalGeo = new THREE.PlaneGeometry(0.11, 0.11);
+const decalMat = new THREE.MeshBasicMaterial({ color: 0x161719, transparent: true, opacity: 0.78, polygonOffset: true, polygonOffsetFactor: -2, depthWrite: false });
+for (let i = 0; i < 48; i++){
+  const m = new THREE.Mesh(decalGeo, decalMat);
+  m.visible = false;
+  scene.add(m);
+  decals.push(m);
+}
+let decalIdx = 0;
+function spawnDecal(pt, normal){
+  const m = decals[decalIdx++ % decals.length];
+  m.position.copy(pt).addScaledVector(normal, 0.008);
+  m.lookAt(pt.clone().add(normal));
+  m.rotation.z = Math.random() * Math.PI * 2;
+  m.visible = true;
+}
+
+/* ================================================================
+   9. ZOMBIE ENEMY MODELS & SPAWNS
+================================================================ */
+const ENEMY_NAMES = ['WALKER','SHAMBLER','BITER','ROTTER','STALKER','LURKER','CRAWLER','INFECTED','GHOUL','ZOMBIE'];
+
+const E_MAT = {
+  cloth : new THREE.MeshStandardMaterial({ color: 0x3f4a3c, roughness: 0.96, metalness: 0.01 }),
+  pants : new THREE.MeshStandardMaterial({ color: 0x2b3038, roughness: 0.95, metalness: 0.01 }),
+  skin  : new THREE.MeshStandardMaterial({ color: 0x6e8563, roughness: 0.88, metalness: 0.0 }),
+  wound : new THREE.MeshStandardMaterial({ color: 0x6b1d1d, roughness: 0.75, metalness: 0.0 }),
+  boot  : new THREE.MeshStandardMaterial({ color: 0x26262a, roughness: 0.94, metalness: 0.04 }),
+  eye   : new THREE.MeshStandardMaterial({ color: 0xffcc33, emissive: 0xff8800, emissiveIntensity: 1.8, roughness: 0.3 }),
+  invis : new THREE.MeshBasicMaterial({ visible: false })
+};
+
+function buildZombieModel(){
+  const model = new THREE.Group();
+  const body  = new THREE.Group();
+  model.add(body);
+
+  const part = (parent, geo, mat, x, y, z) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x,y,z);
+    if (mat !== E_MAT.invis){ m.castShadow = true; m.receiveShadow = true; }
+    parent.add(m); return m;
+  };
+
+  /* Legs */
+  const legs = [];
+  for (const s of [-1, 1]){
+    const hip = new THREE.Group(); hip.position.set(s * 0.135, 0.90, 0); body.add(hip);
+    part(hip, new THREE.BoxGeometry(0.175, 0.46, 0.19), E_MAT.pants, 0, -0.23, 0);
+    const knee = new THREE.Group(); knee.position.set(0, -0.46, 0); hip.add(knee);
+    part(knee, new THREE.BoxGeometry(0.155, 0.44, 0.175), E_MAT.pants, 0, -0.22, 0);
+    part(knee, new THREE.BoxGeometry(0.175, 0.12, 0.27), E_MAT.boot, 0, -0.41, -0.03);
+    legs.push({ hip, knee });
+  }
+
+  /* Hunched torso */
+  part(body, new THREE.BoxGeometry(0.43, 0.56, 0.28), E_MAT.cloth, 0, 1.20, -0.01);
+  part(body, new THREE.BoxGeometry(0.18, 0.22, 0.04), E_MAT.wound, 0.06, 1.28, -0.145);
+  part(body, new THREE.BoxGeometry(0.14, 0.16, 0.04), E_MAT.wound, -0.11, 1.12, -0.145);
+
+  /* Neck + Head */
+  part(body, new THREE.CylinderGeometry(0.062, 0.068, 0.11, 8), E_MAT.skin, 0, 1.53, -0.02);
+  const head = new THREE.Group(); head.position.set(0, 1.655, -0.03); body.add(head);
+  part(head, new THREE.SphereGeometry(0.14, 14, 12), E_MAT.skin, 0, 0, 0);
+  part(head, new THREE.BoxGeometry(0.045, 0.022, 0.03), E_MAT.eye,  0.052, 0.018, -0.125);
+  part(head, new THREE.BoxGeometry(0.045, 0.022, 0.03), E_MAT.eye, -0.052, 0.018, -0.125);
+  part(head, new THREE.BoxGeometry(0.085, 0.045, 0.04), E_MAT.wound, 0, -0.065, -0.118);
+
+  /* Arms (unarmed zombie reach) */
+  const rig = new THREE.Group(); rig.position.set(0, 1.40, 0); body.add(rig);
+  const arms = [];
+  for (const s of [-1, 1]){
+    const sh = new THREE.Group(); sh.position.set(s * 0.265, 0.02, 0); rig.add(sh);
+    part(sh, new THREE.BoxGeometry(0.125, 0.34, 0.135), E_MAT.cloth, 0, -0.17, 0);
+    const el = new THREE.Group(); el.position.set(0, -0.34, 0); sh.add(el);
+    part(el, new THREE.BoxGeometry(0.105, 0.30, 0.115), E_MAT.skin, 0, -0.15, 0);
+    part(el, new THREE.BoxGeometry(0.09, 0.11, 0.12), E_MAT.skin, 0, -0.30, 0.01);
+    arms.push({ sh, el });
+  }
+
+  /* Invisible hitboxes */
+  const hbHead = part(body, new THREE.BoxGeometry(0.35, 0.35, 0.35), E_MAT.invis, 0, 1.66, -0.03);
+  const hbBody = part(body, new THREE.BoxGeometry(0.62, 0.64, 0.44), E_MAT.invis, 0, 1.20, 0);
+  const hbLegs = part(body, new THREE.BoxGeometry(0.55, 0.92, 0.38), E_MAT.invis, 0, 0.46, 0);
+
+  return { model, body, legs, arms, rig, head, hbHead, hbBody, hbLegs };
+}
+
+const SPAWN_DEFS = [
+  { pos: [-12.5, 0, -11.5], patrol: [[-12.5, -11.5], [-4.5, -13.5]], upper: false },
+  { pos: [ 12.8, 0, -12.8], patrol: [[ 12.8, -12.8], [ 4.5, -14.2]], upper: false },
+  { pos: [ -4.2, 0,   4.2], patrol: [[ -4.2,   4.2], [ 4.2,   4.2]], upper: false },
+  { pos: [-10.8, 0,   9.8], patrol: [[-10.8,   9.8], [-15.2,  3.5]], upper: false },
+  { pos: [ 10.6, 0,   9.6], patrol: [[ 10.6,   9.6], [ 15.0,  3.2]], upper: false },
+  { pos: [ -3.6, 3.47, -5.0], patrol: [[-3.6, -5.0], [ 3.6, -5.0]], upper: true },
+  { pos: [ -2.8, 3.60,-30.5], patrol: [[-2.8,-30.5], [ 2.8,-30.5]], upper: true },
+  { pos: [-22.5, 0,  -4.5], patrol: [[-22.5, -4.5], [-14.0, -4.5]], upper: false },
+  { pos: [ 22.5, 0,  -5.0], patrol: [[ 22.5, -5.0], [ 14.0, -5.0]], upper: false },
+  { pos: [  0.0, 0, -22.5], patrol: [[ -6.5,-22.5], [ 6.5,-22.5]], upper: false }
+];
+
+const enemies = [];
+const enemyHitMeshes = [];
+
+for (let i = 0; i < SPAWN_DEFS.length; i++){
+  const def = SPAWN_DEFS[i];
+  const rig = buildZombieModel();
+  rig.model.position.set(def.pos[0], def.pos[1], def.pos[2]);
+  scene.add(rig.model);
+  const e = {
+    id: i,
+    name: ENEMY_NAMES[i % ENEMY_NAMES.length],
+    obj: rig.model,
+    parts: rig,
+    spawn: new THREE.Vector3(...def.pos),
+    patrol: def.patrol.map(p => new THREE.Vector3(p[0], def.pos[1], p[1])),
+    patrolIdx: 0,
+    upper: def.upper,
+    hp: 100,
+    maxHp: 100,
+    alive: true,
+    state: 'PATROL',
+    yaw: Math.random() * Math.PI * 2,
+    vy: 0,
+    alertT: 0,
+    attackCd: 0.4 + Math.random() * 0.4,
+    attackSwing: 0,
+    groanT: 1.5 + Math.random() * 5,
+    stride: Math.random() * 6,
+    deathT: 0,
+    deathPitch: 0,
+    lastKnown: new THREE.Vector3(...def.pos),
+    stuckT: 0,
+    lastPos: new THREE.Vector3(...def.pos)
+  };
+  rig.hbHead.userData = { enemy: e, zone: 'head' };
+  rig.hbBody.userData = { enemy: e, zone: 'body' };
+  rig.hbLegs.userData = { enemy: e, zone: 'legs' };
+  enemyHitMeshes.push(rig.hbHead, rig.hbBody, rig.hbLegs);
+  enemies.push(e);
+}
+
+/* ================================================================
+   10. GAME STATE, PLAYER & INPUT
+================================================================ */
+const STATE = { MENU: 0, PLAY: 1, PAUSE: 2, END: 3 };
+let gameState = STATE.MENU;
+
+const player = {
+  pos: new THREE.Vector3(0, 0, 31.5),
+  vel: new THREE.Vector3(),
+  yaw: 0,
+  pitch: 0,
+  height: 1.72,
+  radius: 0.36,
+  grounded: true,
+  crouching: false,
+  sprinting: false,
+  hp: 100,
+  maxHp: 100,
+  weapIdx: 0,
+  ads: false,
+  adsLerp: 0,
+  reloading: false,
+  reloadT: 0,
+  reloadStage: 0,
+  fireCd: 0,
+  recoilPitch: 0,
+  recoilYaw: 0,
+  bobT: 0,
+  stepDist: 0,
+  flashT: 0,
+  hurtT: 0,
+  dmgAngle: 0,
+  dmgIndT: 0
+};
+
+const stats = { kills: 0, shots: 0, hits: 0, headshots: 0, elapsed: 0, clock: 180 };
+
+const keys = Object.create(null);
+let mouseDown = false;
+let mouseJustPressed = false;
+let rmbDown = false;
+let lookSens = 1.0;
+
+const touchMove = { x: 0, y: 0 };
+
+/* ================================================================
+   11. UI REFERENCES & HELPERS
+================================================================ */
+const $ = id => document.getElementById(id);
+const startScreen = $('startScreen');
+const pauseScreen = $('pauseScreen');
+const endScreen   = $('endScreen');
+const lockNote    = $('lockNote');
+const hitmarkEl   = $('hitmark');
+const dmgEl       = $('dmg');
+const lowHpEl     = $('lowHp');
+const dmgArcEl    = $('dmgArc');
+const reloadCue   = $('reloadCue');
+const reloadFill  = $('reloadFill');
+const feedEl      = $('feed');
+
+let hitmarkT = 0;
+
+function showScreen(which){
+  startScreen.classList.toggle('show', which === STATE.MENU);
+  pauseScreen.classList.toggle('show', which === STATE.PAUSE);
+  endScreen.classList.toggle('show', which === STATE.END);
+  document.body.classList.toggle('playing', which === STATE.PLAY);
+}
+
+function pushFeed(html){
+  const d = document.createElement('div');
+  d.innerHTML = html;
+  feedEl.prepend(d);
+  while (feedEl.children.length > 4) feedEl.lastChild.remove();
+  setTimeout(() => { if (d.parentNode) d.remove(); }, 3400);
+}
+
+function updateHud(){
+  const alive = enemies.filter(e => e.alive).length;
+  $('hudAlive').textContent = alive;
+  const rem = Math.max(0, Math.ceil(stats.clock));
+  const mm = String(Math.floor(rem / 60)).padStart(2, '0');
+  const ss = String(rem % 60).padStart(2, '0');
+  $('hudClock').textContent = `${mm}:${ss}`;
+
+  const hp = Math.max(0, Math.ceil(player.hp));
+  $('hpNum').textContent = hp;
+  $('hpFill').style.width = `${hp}%`;
+  const low = hp <= 30;
+  $('hpNum').style.color = low ? 'var(--red)' : 'var(--ink)';
+  $('hpFill').style.background = low ? 'var(--red)' : 'var(--ink)';
+
+  const w = WEAPONS[player.weapIdx];
+  $('ammoMag').textContent = w.mag;
+  $('ammoRes').textContent = w.reserve;
+  $('ammoMag').style.color = w.mag <= Math.ceil(w.magSize * 0.25) ? 'var(--amber)' : 'var(--ink)';
+  $('weapName').textContent = w.name;
+}
+
+/* ================================================================
+   12. COLLISION & SURFACE HELPERS
+================================================================ */
+function groundHeightAt(x, z, currentY){
+  let best = 0;
+  for (let i = 0; i < walkSurfaces.length; i++){
+    const s = walkSurfaces[i];
+    if (x >= s.minX && x <= s.maxX && z >= s.minZ && z <= s.maxZ){
+      if (s.y <= currentY + 0.55 && s.y > best) best = s.y;
+    }
+  }
+  return best;
+}
+
+function resolveHorizontal(pos, radius, feetY, height){
+  const topY = feetY + height;
+  for (let i = 0; i < colliders.length; i++){
+    const b = colliders[i];
+    if (topY <= b.min.y + 0.05 || feetY >= b.max.y - 0.12) continue;
+    const cx = Math.max(b.min.x, Math.min(pos.x, b.max.x));
+    const cz = Math.max(b.min.z, Math.min(pos.z, b.max.z));
+    const dx = pos.x - cx;
+    const dz = pos.z - cz;
+    const d2 = dx*dx + dz*dz;
+    if (d2 < radius * radius){
+      const d = Math.sqrt(d2);
+      if (d > 1e-5){
+        const pen = radius - d;
+        pos.x += (dx / d) * pen;
+        pos.z += (dz / d) * pen;
+      } else {
+        pos.z += radius;
+      }
+    }
+  }
+  pos.x = Math.max(-39.6, Math.min(39.6, pos.x));
+  pos.z = Math.max(-39.6, Math.min(39.6, pos.z));
+}
+
+/* ================================================================
+   13. WEAPONS, SHOOTING & EXPLOSIONS
+================================================================ */
+const shootRay = new THREE.Raycaster();
+const losRay   = new THREE.Raycaster();
+const _v1 = new THREE.Vector3();
+const _v2 = new THREE.Vector3();
+const _dir = new THREE.Vector3();
+
+function switchWeapon(idx){
+  if (idx === player.weapIdx || idx < 0 || idx >= WEAPONS.length) return;
+  player.weapIdx = idx;
+  player.reloading = false;
+  reloadCue.style.display = 'none';
+  rifleView.group.visible  = idx === 0;
+  pistolView.group.visible = idx === 1;
+  updateHud();
+}
+
+function startReload(){
+  const w = WEAPONS[player.weapIdx];
+  if (player.reloading || w.mag >= w.magSize || w.reserve <= 0) return;
+  player.reloading = true;
+  player.reloadT = 0;
+  player.reloadStage = 0;
+  reloadCue.style.display = 'flex';
+  SFX.reload(0);
+}
+
+function finishReload(){
+  const w = WEAPONS[player.weapIdx];
+  const need = w.magSize - w.mag;
+  const take = Math.min(need, w.reserve);
+  w.mag += take;
+  w.reserve -= take;
+  player.reloading = false;
+  reloadCue.style.display = 'none';
+  SFX.reload(2);
+  updateHud();
+}
+
+function detonateBarrel(b){
+  if (b.blown) return;
+  b.blown = true;
+  b.mesh.visible = false;
+  b.hitMesh.position.y = -999;
+  b.hitMesh.updateMatrixWorld();
+  const idx = colliders.findIndex(c => Math.abs(c.min.x - (b.pos.x - 0.34)) < 0.05 && Math.abs(c.min.z - (b.pos.z - 0.34)) < 0.05);
+  if (idx >= 0) colliders.splice(idx, 1);
+
+  const distP = player.pos.distanceTo(b.pos);
+  const pan = Math.max(-1, Math.min(1, (b.pos.x - player.pos.x) / 14));
+  SFX.explosion(pan, distP);
+
+  for (let i = 0; i < 36; i++){
+    sparkPool.spawn(b.pos.x, b.pos.y + 0.3, b.pos.z, (Math.random()-.5)*14, 3 + Math.random()*10, (Math.random()-.5)*14, 0.45 + Math.random()*0.4);
+  }
+  for (let i = 0; i < 18; i++){
+    smokePool.spawn(b.pos.x + (Math.random()-.5)*1.2, b.pos.y + 0.4, b.pos.z + (Math.random()-.5)*1.2, (Math.random()-.5)*3, 1.5 + Math.random()*3, (Math.random()-.5)*3, 1.1 + Math.random()*0.8, -0.6);
+  }
+
+  for (const e of enemies){
+    if (!e.alive) continue;
+    const d = e.obj.position.distanceTo(b.pos);
+    if (d < 6.5){
+      const dmg = Math.round(165 * (1 - d / 6.5));
+      damageEnemy(e, dmg, false, 'EXPLOSION');
+    }
+  }
+  if (distP < 5.5){
+    damagePlayer(Math.round(72 * (1 - distP / 5.5)), b.pos);
+  }
+}
+
+function damageEnemy(e, amount, headshot = false, source = 'RIFLE'){
+  if (!e.alive) return;
+  e.hp -= amount;
+  e.alertT = 7.0;
+  e.lastKnown.copy(player.pos);
+  if (e.state !== 'COMBAT') e.state = 'COMBAT';
+
+  if (e.hp <= 0){
+    e.hp = 0;
+    e.alive = false;
+    e.deathT = 0;
+    stats.kills++;
+    if (headshot) stats.headshots++;
+    hitmarkEl.classList.add('kill');
+    hitmarkEl.style.opacity = '1';
+    hitmarkT = 0.22;
+    SFX.hitConfirm(true);
+    pushFeed(`<b>ELIMINATED</b> ${e.name}${headshot ? ' · HEADSHOT' : ''}`);
+    updateHud();
+    if (stats.kills >= enemies.length){
+      setTimeout(() => endMission(true), 650);
+    }
+  } else {
+    hitmarkEl.classList.remove('kill');
+    hitmarkEl.style.opacity = '1';
+    hitmarkT = 0.14;
+    SFX.hitConfirm(headshot);
+  }
+}
+
+function fireWeapon(){
+  const w = WEAPONS[player.weapIdx];
+  if (player.reloading || player.fireCd > 0) return;
+  if (w.mag <= 0){
+    if (mouseJustPressed) SFX.dryFire();
+    if (w.reserve > 0) startReload();
+    return;
+  }
+
+  w.mag--;
+  player.fireCd = 60 / w.rpm;
+  stats.shots++;
+  updateHud();
+
+  SFX.shot(w.id === 'rifle', 0, 0);
+  player.flashT = 0.045;
+  muzzleFlashLight.intensity = 4.5;
+  muzzleFlashPlane.material.opacity = 0.92;
+  muzzleFlashPlane.rotation.z = Math.random() * Math.PI * 2;
+
+  const spread = THREE.MathUtils.lerp(w.spreadHip, w.spreadAds, player.adsLerp) + (player.sprinting ? 0.018 : 0);
+  camera.getWorldDirection(_dir);
+  _dir.x += (Math.random() - 0.5) * spread * 2;
+  _dir.y += (Math.random() - 0.5) * spread * 2;
+  _dir.z += (Math.random() - 0.5) * spread * 2;
+  _dir.normalize();
+
+  camera.getWorldPosition(_v1);
+  shootRay.set(_v1, _dir);
+  shootRay.far = 160;
+
+  const activeBarrelMeshes = explosiveBarrels.filter(b => !b.blown).map(b => b.hitMesh);
+  const targets = [...worldSolid, ...enemyHitMeshes, ...activeBarrelMeshes];
+  const hits = shootRay.intersectObjects(targets, false);
+
+  const viewObj = player.weapIdx === 0 ? rifleView : pistolView;
+  viewObj.muzzle.getWorldPosition(_v2);
+
+  if (hits.length > 0){
+    const h = hits[0];
+    spawnTracer(_v2, h.point);
+
+    const barrel = explosiveBarrels.find(b => !b.blown && b.hitMesh === h.object);
+    if (barrel){
+      barrel.hp -= w.damage;
+      for (let i = 0; i < 8; i++){
+        sparkPool.spawn(h.point.x, h.point.y, h.point.z, (Math.random()-.5)*6, 1+Math.random()*4, (Math.random()-.5)*6, 0.25);
+      }
+      if (barrel.hp <= 0) detonateBarrel(barrel);
+    } else if (h.object.userData && h.object.userData.enemy){
+      const { enemy, zone } = h.object.userData;
+      if (enemy.alive){
+        stats.hits++;
+        const hs = zone === 'head';
+        const mult = hs ? w.headMult : (zone === 'legs' ? 0.72 : 1.0);
+        damageEnemy(enemy, Math.round(w.damage * mult), hs);
+        for (let i = 0; i < (hs ? 14 : 8); i++){
+          bloodPool.spawn(h.point.x, h.point.y, h.point.z, (Math.random()-.5)*4.2, 0.8+Math.random()*3.2, (Math.random()-.5)*4.2, 0.35 + Math.random()*0.25);
+        }
+      }
+    } else {
+      const n = h.face ? h.face.normal.clone().transformDirection(h.object.matrixWorld) : new THREE.Vector3(0,1,0);
+      spawnDecal(h.point, n);
+      for (let i = 0; i < 7; i++){
+        sparkPool.spawn(h.point.x, h.point.y, h.point.z, n.x*3 + (Math.random()-.5)*5, n.y*3 + 1 + Math.random()*4, n.z*3 + (Math.random()-.5)*5, 0.24);
+      }
+    }
+  } else {
+    spawnTracer(_v2, _v1.clone().addScaledVector(_dir, 90));
+  }
+
+  /* Alert nearby zombies to gunfire */
+  for (const e of enemies){
+    if (!e.alive) continue;
+    if (e.obj.position.distanceTo(player.pos) < 34){
+      e.alertT = 7.5;
+      e.lastKnown.copy(player.pos);
+      if (e.state === 'PATROL') e.state = 'COMBAT';
+    }
+  }
+
+  const adsScale = THREE.MathUtils.lerp(1, 0.62, player.adsLerp);
+  player.recoilPitch += w.recoilUp * adsScale;
+  player.recoilYaw   += (Math.random() - 0.5) * 2 * w.recoilSide * adsScale;
+  weaponRoot.position.z += 0.032;
+  weaponRoot.rotation.x += 0.055;
+
+  if (w.mag === 0 && w.reserve > 0) startReload();
+}
+
+function damagePlayer(amount, fromPos){
+  if (gameState !== STATE.PLAY || player.hp <= 0) return;
+  player.hp = Math.max(0, player.hp - amount);
+  player.hurtT = 0.28;
+  dmgEl.style.opacity = '0.9';
+  SFX.hurt();
+
+  if (fromPos){
+    const dx = fromPos.x - player.pos.x;
+    const dz = fromPos.z - player.pos.z;
+    const worldAng = Math.atan2(-dx, -dz);
+    player.dmgAngle = worldAng - player.yaw;
+    player.dmgIndT = 0.95;
+    dmgArcEl.style.transform = `rotate(${-player.dmgAngle}rad)`;
+    dmgArcEl.style.opacity = '1';
+  }
+
+  updateHud();
+  if (player.hp <= 0) endMission(false);
+}
+
+/* ================================================================
+   14. ZOMBIE AI (MELEE HORDE CHASE & SWIPE)
+================================================================ */
+const ZOMBIE_REACH = 1.95;
+const _eEye = new THREE.Vector3();
+const _pEye = new THREE.Vector3();
+const _toP  = new THREE.Vector3();
+
+function canZombieSeePlayer(e){
+  _eEye.set(e.obj.position.x, e.obj.position.y + 1.56, e.obj.position.z);
+  _pEye.set(player.pos.x, player.pos.y + player.height - 0.14, player.pos.z);
+  _toP.subVectors(_pEye, _eEye);
+  const dist = _toP.length();
+  if (dist > 44) return false;
+  _toP.divideScalar(dist);
+
+  const fwdX = -Math.sin(e.yaw), fwdZ = -Math.cos(e.yaw);
+  const dot = fwdX * _toP.x + fwdZ * _toP.z;
+  if (dot < -0.15 && dist > 6.5 && e.alertT <= 0) return false;
+
+  losRay.set(_eEye, _toP);
+  losRay.far = dist - 0.25;
+  return losRay.intersectObjects(worldSolid, false).length === 0;
+}
+
+function zombieAttack(e){
+  _eEye.set(e.obj.position.x, e.obj.position.y + 1.45, e.obj.position.z);
+  _pEye.set(player.pos.x, player.pos.y + 1.15, player.pos.z);
+  const dist = _eEye.distanceTo(_pEye);
+  if (dist > ZOMBIE_REACH + 0.35) return;
+
+  _toP.subVectors(_eEye, _pEye);
+  const revLen = _toP.length();
+  if (revLen > 0.3){
+    _toP.divideScalar(revLen);
+    losRay.set(_pEye, _toP);
+    losRay.far = revLen - 0.2;
+    if (losRay.intersectObjects(worldSolid, false).length) return;
+  }
+
+  const pan = Math.max(-1, Math.min(1, (e.obj.position.x - player.pos.x) / 12));
+  SFX.impactFlesh(pan, dist);
+  damagePlayer(14 + Math.floor(Math.random() * 9), e.obj.position);
+}
+
+function updateEnemies(dt){
+  for (const e of enemies){
+    const p = e.parts;
+
+    if (!e.alive){
+      e.deathT += dt;
+      e.deathPitch = Math.min(Math.PI * 0.48, e.deathT * 4.4);
+      p.body.rotation.x = e.deathPitch;
+      p.body.position.y = -Math.sin(e.deathPitch) * 0.62;
+      continue;
+    }
+
+    e.alertT = Math.max(0, e.alertT - dt);
+    e.attackCd = Math.max(0, e.attackCd - dt);
+    e.attackSwing = Math.max(0, e.attackSwing - dt * 3.4);
+    e.groanT -= dt;
+
+    const sees = canZombieSeePlayer(e);
+    if (sees){
+      e.alertT = 7.0;
+      e.lastKnown.copy(player.pos);
+      if (e.state === 'PATROL'){
+        e.state = 'COMBAT';
+        const pan = Math.max(-1, Math.min(1, (e.obj.position.x - player.pos.x) / 14));
+        SFX.zombieGroan(pan, e.obj.position.distanceTo(player.pos));
+      }
+    } else if (e.state === 'COMBAT' && e.alertT <= 0){
+      e.state = 'PATROL';
+    }
+
+    if (e.groanT <= 0){
+      e.groanT = (e.state === 'COMBAT' ? 3.2 : 7.5) + Math.random() * 5;
+      const d = e.obj.position.distanceTo(player.pos);
+      if (d < 26){
+        const pan = Math.max(-1, Math.min(1, (e.obj.position.x - player.pos.x) / 14));
+        SFX.zombieGroan(pan, d);
+      }
+    }
+
+    let targetX = e.obj.position.x;
+    let targetZ = e.obj.position.z;
+    let moveSpeed = 0;
+
+    if (e.state === 'PATROL'){
+      const wp = e.patrol[e.patrolIdx];
+      targetX = wp.x; targetZ = wp.z;
+      moveSpeed = 1.15;
+      if (Math.hypot(wp.x - e.obj.position.x, wp.z - e.obj.position.z) < 0.7){
+        e.patrolIdx = (e.patrolIdx + 1) % e.patrol.length;
+      }
+    } else {
+      const dest = sees ? player.pos : e.lastKnown;
+      targetX = dest.x;
+      targetZ = dest.z;
+      const distToP = Math.hypot(player.pos.x - e.obj.position.x, player.pos.z - e.obj.position.z);
+
+      if (sees && distToP <= ZOMBIE_REACH){
+        moveSpeed = 0.4;
+        if (e.attackCd <= 0){
+          e.attackSwing = 1.0;
+          e.attackCd = 1.15;
+          zombieAttack(e);
+        }
+      } else {
+        moveSpeed = e.upper ? 1.55 : 2.45;
+      }
+    }
+
+    const dx = targetX - e.obj.position.x;
+    const dz = targetZ - e.obj.position.z;
+    const dist = Math.hypot(dx, dz);
+
+    if (dist > 0.25 && moveSpeed > 0){
+      let mx = dx / dist;
+      let mz = dz / dist;
+
+      /* Separation from other zombies so hordes don't stack on a single point */
+      for (const other of enemies){
+        if (other === e || !other.alive) continue;
+        const ox = e.obj.position.x - other.obj.position.x;
+        const oz = e.obj.position.z - other.obj.position.z;
+        const od = Math.hypot(ox, oz);
+        if (od > 0.01 && od < 1.15){
+          const push = (1.15 - od) * 1.4;
+          mx += (ox / od) * push;
+          mz += (oz / od) * push;
+        }
+      }
+
+      if (e.stuckT > 0.45){
+        const side = (e.id % 2 === 0) ? 1 : -1;
+        const tx = -mz * side, tz = mx * side;
+        mx = mx * 0.35 + tx * 0.85;
+        mz = mz * 0.35 + tz * 0.85;
+      }
+
+      const nLen = Math.hypot(mx, mz) || 1;
+      mx /= nLen; mz /= nLen;
+
+      e.obj.position.x += mx * moveSpeed * dt;
+      e.obj.position.z += mz * moveSpeed * dt;
+
+      const desiredYaw = Math.atan2(-mx, -mz);
+      let diff = desiredYaw - e.yaw;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      e.yaw += diff * Math.min(1, dt * 9);
+    } else if (sees){
+      const desiredYaw = Math.atan2(-(player.pos.x - e.obj.position.x), -(player.pos.z - e.obj.position.z));
+      let diff = desiredYaw - e.yaw;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      e.yaw += diff * Math.min(1, dt * 11);
+    }
+
+    resolveHorizontal(e.obj.position, 0.38, e.obj.position.y, 1.78);
+
+    const floorY = groundHeightAt(e.obj.position.x, e.obj.position.z, e.obj.position.y);
+    if (e.obj.position.y > floorY + 0.02){
+      e.vy -= 22 * dt;
+      e.obj.position.y = Math.max(floorY, e.obj.position.y + e.vy * dt);
+    } else {
+      e.vy = 0;
+      e.obj.position.y += (floorY - e.obj.position.y) * Math.min(1, dt * 16);
+    }
+
+    const moved = e.obj.position.distanceTo(e.lastPos);
+    if (moveSpeed > 1.0 && moved < 0.35 * dt) e.stuckT += dt;
+    else e.stuckT = Math.max(0, e.stuckT - dt * 2);
+    e.lastPos.copy(e.obj.position);
+
+    e.obj.rotation.y = e.yaw;
+
+    /* Procedural zombie shambling & outstretched arm animation */
+    const spd = moved / Math.max(dt, 1e-4);
+    e.stride += spd * dt * 2.1;
+    const swing = Math.min(1, spd / 2.8) * 0.56;
+    p.legs[0].hip.rotation.x  = Math.sin(e.stride) * swing;
+    p.legs[1].hip.rotation.x  = -Math.sin(e.stride) * swing;
+    p.legs[0].knee.rotation.x = Math.max(0, -Math.sin(e.stride)) * swing * 0.7;
+    p.legs[1].knee.rotation.x = Math.max(0,  Math.sin(e.stride)) * swing * 0.7;
+
+    const cb = e.state === 'COMBAT' ? 1 : 0.25;
+    const claw = Math.sin(e.attackSwing * Math.PI) * 0.85;
+    p.arms[0].sh.rotation.x = THREE.MathUtils.lerp(0.25, 1.48, cb) + Math.sin(e.stride * 0.5) * 0.08 + claw;
+    p.arms[1].sh.rotation.x = THREE.MathUtils.lerp(0.25, 1.42, cb) - Math.sin(e.stride * 0.5) * 0.08 + claw * 0.7;
+    p.arms[0].el.rotation.x = 0.28 + claw * 0.35;
+    p.arms[1].el.rotation.x = 0.32 + claw * 0.25;
+    p.body.rotation.x = THREE.MathUtils.lerp(0.08, 0.22, cb) + claw * 0.12;
+    p.body.rotation.z = Math.sin(e.stride * 0.5) * 0.06;
+    p.head.rotation.z = Math.sin(e.stride * 0.5 + 1.1) * 0.08;
+  }
+}
+
+/* ================================================================
+   15. PLAYER MOVEMENT & VIEWMODEL UPDATE
+================================================================ */
+function updatePlayer(dt){
+  player.crouching = !!(keys['KeyC'] || keys['ControlLeft']);
+  const wantsSprint = !!(keys['ShiftLeft'] || keys['ShiftRight']) && !player.crouching && !player.ads;
+  const moveF = (keys['KeyW'] || keys['ArrowUp'] ? 1 : 0) - (keys['KeyS'] || keys['ArrowDown'] ? 1 : 0) - touchMove.y;
+  const moveR = (keys['KeyD'] || keys['ArrowRight'] ? 1 : 0) - (keys['KeyA'] || keys['ArrowLeft'] ? 1 : 0) + touchMove.x;
+  const hasInput = Math.hypot(moveF, moveR) > 0.05;
+  player.sprinting = wantsSprint && moveF > 0.1 && !player.reloading;
+
+  player.ads = (rmbDown) && !player.sprinting && !player.reloading;
+  player.adsLerp += ((player.ads ? 1 : 0) - player.adsLerp) * Math.min(1, dt * 14);
+
+  const targetH = player.crouching ? 1.12 : 1.72;
+  player.height += (targetH - player.height) * Math.min(1, dt * 13);
+
+  const speed = player.crouching ? 3.1 : player.sprinting ? 7.8 : player.ads ? 3.6 : 5.3;
+  const sinY = Math.sin(player.yaw), cosY = Math.cos(player.yaw);
+  let wishX = (-sinY * moveF + cosY * moveR);
+  let wishZ = (-cosY * moveF - sinY * moveR);
+  const wLen = Math.hypot(wishX, wishZ);
+  if (wLen > 1){ wishX /= wLen; wishZ /= wLen; }
+
+  const accel = player.grounded ? 14 : 3.5;
+  player.vel.x += (wishX * speed - player.vel.x) * Math.min(1, dt * accel);
+  player.vel.z += (wishZ * speed - player.vel.z) * Math.min(1, dt * accel);
+
+  if (keys['Space'] && player.grounded){
+    player.vel.y = 6.7;
+    player.grounded = false;
+  }
+  player.vel.y -= 20.5 * dt;
+
+  player.pos.x += player.vel.x * dt;
+  player.pos.z += player.vel.z * dt;
+  resolveHorizontal(player.pos, player.radius, player.pos.y, player.height);
+
+  player.pos.y += player.vel.y * dt;
+  const floorY = groundHeightAt(player.pos.x, player.pos.z, player.pos.y);
+  if (player.pos.y <= floorY){
+    player.pos.y = floorY;
+    player.vel.y = 0;
+    player.grounded = true;
+  } else {
+    player.grounded = false;
+  }
+
+  /* Recoil recovery */
+  player.recoilPitch *= Math.pow(0.0012, dt);
+  player.recoilYaw   *= Math.pow(0.0012, dt);
+
+  camera.position.set(player.pos.x, player.pos.y + player.height - 0.10, player.pos.z);
+  camera.rotation.y = player.yaw + player.recoilYaw;
+  camera.rotation.x = Math.max(-1.46, Math.min(1.46, player.pitch + player.recoilPitch));
+
+  const w = WEAPONS[player.weapIdx];
+  const targetFov = THREE.MathUtils.lerp(player.sprinting ? 81 : 75, w.adsFov, player.adsLerp);
+  if (Math.abs(camera.fov - targetFov) > 0.05){
+    camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 14);
+    camera.updateProjectionMatrix();
+  }
+
+  /* Firing & Reload */
+  player.fireCd = Math.max(0, player.fireCd - dt);
+  if (mouseDown && (w.auto || mouseJustPressed)){
+    fireWeapon();
+  }
+  mouseJustPressed = false;
+
+  if (player.reloading){
+    player.reloadT += dt;
+    const pct = Math.min(1, player.reloadT / w.reloadTime);
+    reloadFill.style.width = `${pct * 100}%`;
+    if (pct > 0.48 && player.reloadStage === 0){
+      player.reloadStage = 1;
+      SFX.reload(1);
+    }
+    if (pct >= 1) finishReload();
+  }
+
+  /* Weapon bob & ADS positioning */
+  const horizSpd = Math.hypot(player.vel.x, player.vel.z);
+  if (player.grounded && hasInput && horizSpd > 0.4){
+    player.bobT += dt * horizSpd * 1.65;
+    player.stepDist += horizSpd * dt;
+    const stepLen = player.sprinting ? 2.55 : 2.05;
+    if (player.stepDist >= stepLen){
+      player.stepDist = 0;
+      SFX.footstep(player.sprinting);
+    }
+  } else {
+    player.bobT += dt * 1.4;
+  }
+
+  const bobAmp = (player.grounded && hasInput ? 0.0085 : 0.0016) * (1 - player.adsLerp * 0.78);
+  const bx = Math.cos(player.bobT * 0.5) * bobAmp;
+  const by = Math.abs(Math.sin(player.bobT * 0.5)) * bobAmp * 1.2;
+
+  const restPos = _v1.lerpVectors(w.hipPos, w.adsPos, player.adsLerp);
+  if (player.reloading) restPos.y -= Math.sin(Math.min(1, player.reloadT / w.reloadTime) * Math.PI) * 0.11;
+  weaponRoot.position.x += (restPos.x + bx - weaponRoot.position.x) * Math.min(1, dt * 18);
+  weaponRoot.position.y += (restPos.y - by - weaponRoot.position.y) * Math.min(1, dt * 18);
+  weaponRoot.position.z += (restPos.z - weaponRoot.position.z) * Math.min(1, dt * 18);
+
+  const sprintRoll = player.sprinting ? -0.34 : 0;
+  const reloadRoll = player.reloading ? Math.sin(Math.min(1, player.reloadT / w.reloadTime) * Math.PI) * 0.42 : 0;
+  weaponRoot.rotation.x += (0 - weaponRoot.rotation.x) * Math.min(1, dt * 18);
+  weaponRoot.rotation.z += (sprintRoll + reloadRoll - weaponRoot.rotation.z) * Math.min(1, dt * 14);
+
+  /* Muzzle flash & screen damage decay */
+  if (player.flashT > 0){
+    player.flashT -= dt;
+    if (player.flashT <= 0){
+      muzzleFlashLight.intensity = 0;
+      muzzleFlashPlane.material.opacity = 0;
+    }
+  }
+  if (player.hurtT > 0){
+    player.hurtT -= dt;
+    if (player.hurtT <= 0) dmgEl.style.opacity = '0';
+  }
+  if (player.dmgIndT > 0){
+    player.dmgIndT -= dt;
+    if (player.dmgIndT <= 0) dmgArcEl.style.opacity = '0';
+  }
+  if (player.hp <= 30){
+    lowHpEl.style.opacity = String(0.35 + 0.25 * Math.sin(performance.now() * 0.008));
+  } else {
+    lowHpEl.style.opacity = '0';
+  }
+}
+
+/* ================================================================
+   16. MISSION FLOW (START, PAUSE, END, RESET)
+================================================================ */
+function resetMission(){
+  player.pos.set(0, 0, 31.5);
+  player.vel.set(0, 0, 0);
+  player.yaw = 0;
+  player.pitch = 0;
+  player.hp = 100;
+  player.height = 1.72;
+  player.grounded = true;
+  player.crouching = false;
+  player.sprinting = false;
+  player.reloading = false;
+  player.reloadT = 0;
+  player.reloadStage = 0;
+  player.fireCd = 0;
+  player.ads = false;
+  player.adsLerp = 0;
+  player.recoilPitch = 0;
+  player.recoilYaw = 0;
+  player.bobT = 0;
+  player.stepDist = 0;
+  player.flashT = 0;
+  player.hurtT = 0;
+  player.dmgIndT = 0;
+  reloadCue.style.display = 'none';
+  dmgEl.style.opacity = '0';
+  lowHpEl.style.opacity = '0';
+  dmgArcEl.style.opacity = '0';
+  muzzleFlashLight.intensity = 0;
+  muzzleFlashPlane.material.opacity = 0;
+  weaponRoot.position.set(0, 0, 0);
+  weaponRoot.rotation.set(0, 0, 0);
+
+  WEAPONS[0].mag = 30; WEAPONS[0].reserve = 120;
+  WEAPONS[1].mag = 15; WEAPONS[1].reserve = 60;
+  switchWeapon(0);
+
+  for (const e of enemies){
+    e.obj.position.copy(e.spawn);
+    e.lastPos.copy(e.spawn);
+    e.hp = e.maxHp;
+    e.alive = true;
+    e.state = 'PATROL';
+    e.patrolIdx = 0;
+    e.alertT = 0;
+    e.attackCd = 0.4 + Math.random() * 0.5;
+    e.attackSwing = 0;
+    e.deathT = 0;
+    e.deathPitch = 0;
+    e.stuckT = 0;
+    e.parts.body.rotation.set(0, 0, 0);
+    e.parts.body.position.set(0, 0, 0);
+  }
+
+  for (const b of explosiveBarrels){
+    if (b.blown){
+      b.blown = false;
+      b.hp = 45;
+      b.mesh.visible = true;
+      b.hitMesh.position.set(b.pos.x, b.pos.y, b.pos.z);
+      b.hitMesh.updateMatrixWorld();
+      colliders.push(new THREE.Box3().setFromObject(b.hitMesh));
+    } else {
+      b.hp = 45;
+    }
+  }
+
+  stats.kills = 0;
+  stats.shots = 0;
+  stats.hits = 0;
+  stats.headshots = 0;
+  stats.elapsed = 0;
+  stats.clock = 180;
+  feedEl.innerHTML = '';
+  updateHud();
+}
+
+function lockPointer(){
+  if (isTouch) return;
+  try {
+    const p = renderer.domElement.requestPointerLock();
+    if (p && p.catch) p.catch(() => { lockNote.style.display = 'block'; });
+  } catch (_) {
+    lockNote.style.display = 'block';
+  }
+}
+
+function startMission(){
+  SFX.init();
+  resetMission();
+  gameState = STATE.PLAY;
+  showScreen(STATE.PLAY);
+  lockPointer();
+}
+
+function resumeMission(){
+  SFX.init();
+  gameState = STATE.PLAY;
+  showScreen(STATE.PLAY);
+  lockPointer();
+}
+
+function pauseMission(){
+  if (gameState !== STATE.PLAY) return;
+  gameState = STATE.PAUSE;
+  mouseDown = false; rmbDown = false;
+  showScreen(STATE.PAUSE);
+  if (document.pointerLockElement) document.exitPointerLock();
+}
+
+function endMission(victory){
+  if (gameState === STATE.END) return;
+  gameState = STATE.END;
+  mouseDown = false; rmbDown = false;
+  if (document.pointerLockElement) document.exitPointerLock();
+
+  $('endSlug').textContent    = victory ? 'ZOMBIE APOLOCASE // SECTOR SECURED' : 'ZOMBIE APOLOCASE // SIGNAL LOST';
+  $('endEyebrow').textContent = victory ? 'OUTBREAK CONTAINED' : 'OPERATOR DOWN';
+  $('endEyebrow').style.color = victory ? 'var(--green)' : 'var(--red)';
+  $('endTitle').innerHTML     = victory ? 'MISSION<br>COMPLETE' : 'MISSION<br>FAILED';
+  $('endSub').textContent     = victory
+    ? 'All 10 infected neutralized. Sector 7 perimeter is secure.'
+    : (stats.clock <= 0 ? 'Time expired before the sector could be cleared.' : 'Overrun by the infected in Sector 7.');
+
+  const acc = stats.shots > 0 ? Math.round((stats.hits / stats.shots) * 100) : 0;
+  const el = Math.floor(stats.elapsed);
+  $('stKills').textContent = `${stats.kills}/10`;
+  $('stAcc').textContent   = `${acc}%`;
+  $('stHs').textContent    = String(stats.headshots);
+  $('stTime').textContent  = `${String(Math.floor(el/60)).padStart(2,'0')}:${String(el%60).padStart(2,'0')}`;
+
+  showScreen(STATE.END);
+}
+
+/* ================================================================
+   17. EVENT LISTENERS (KEYBOARD, MOUSE, POINTER LOCK, TOUCH)
+================================================================ */
+$('btnDeploy').addEventListener('click', startMission);
+$('btnResume').addEventListener('click', resumeMission);
+$('btnRestart').addEventListener('click', startMission);
+$('btnAgain').addEventListener('click', startMission);
+
+const isTouch = (('ontouchstart' in window) || (navigator.maxTouchPoints > 0));
+
+/* Sensitivity slider */
+const sensSlider = $('sensSlider');
+const sensValEl  = $('sensVal');
+sensSlider.addEventListener('input', () => {
+  lookSens = parseFloat(sensSlider.value) || 1.0;
+  sensValEl.textContent = lookSens.toFixed(2);
+});
+
+/* Pointer lock */
+document.addEventListener('pointerlockchange', () => {
+  const locked = document.pointerLockElement === renderer.domElement;
+  if (locked){
+    lockNote.style.display = 'none';
+  } else if (gameState === STATE.PLAY && !isTouch){
+    lockNote.style.display = 'block';
+    pauseMission();
+  }
+});
+document.addEventListener('pointerlockerror', () => {
+  lockNote.style.display = 'block';
+});
+renderer.domElement.addEventListener('click', () => {
+  if (gameState === STATE.PLAY && !document.pointerLockElement) lockPointer();
+});
+
+/* Keyboard */
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Tab' || e.code === 'Space') e.preventDefault();
+  keys[e.code] = true;
+  if (gameState === STATE.PLAY){
+    if (e.code === 'KeyR') startReload();
+    if (e.code === 'Digit1') switchWeapon(0);
+    if (e.code === 'Digit2') switchWeapon(1);
+  }
+  if (e.code === 'Escape' && gameState === STATE.PLAY) pauseMission();
+});
+window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+window.addEventListener('blur', () => {
+  for (const k in keys) keys[k] = false;
+  mouseDown = false;
+  rmbDown = false;
+});
+
+/* Mouse */
+document.addEventListener('mousedown', (e) => {
+  if (gameState !== STATE.PLAY) return;
+  if (e.button === 0){ mouseDown = true; mouseJustPressed = true; }
+  if (e.button === 2) rmbDown = true;
+});
+document.addEventListener('mouseup', (e) => {
+  if (e.button === 0) mouseDown = false;
+  if (e.button === 2) rmbDown = false;
+});
+document.addEventListener('contextmenu', (e) => e.preventDefault());
+document.addEventListener('mousemove', (e) => {
+  if (gameState !== STATE.PLAY) return;
+  if (document.pointerLockElement !== renderer.domElement) return;
+  const s = 0.0022 * lookSens;
+  player.yaw   -= e.movementX * s;
+  player.pitch -= e.movementY * s;
+  player.pitch = Math.max(-1.46, Math.min(1.46, player.pitch));
+});
+
+/* Touch: virtual joystick */
+const joyZone = $('joyZone');
+const joyKnob = $('joyKnob');
+let joyId = null;
+const joyCenter = { x: 0, y: 0 };
+
+joyZone.addEventListener('touchstart', (ev) => {
+  ev.preventDefault();
+  const t = ev.changedTouches[0];
+  joyId = t.identifier;
+  const r = joyZone.getBoundingClientRect();
+  joyCenter.x = r.left + r.width / 2;
+  joyCenter.y = r.top + r.height / 2;
+}, { passive: false });
+
+joyZone.addEventListener('touchmove', (ev) => {
+  ev.preventDefault();
+  for (const t of ev.changedTouches){
+    if (t.identifier !== joyId) continue;
+    let dx = t.clientX - joyCenter.x;
+    let dy = t.clientY - joyCenter.y;
+    const max = 50;
+    const d = Math.hypot(dx, dy);
+    if (d > max){ dx = dx / d * max; dy = dy / d * max; }
+    joyKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+    touchMove.x = dx / max;
+    touchMove.y = dy / max;
+  }
+}, { passive: false });
+
+function resetJoy(ev){
+  for (const t of ev.changedTouches){
+    if (t.identifier !== joyId) continue;
+    joyId = null;
+    joyKnob.style.transform = '';
+    touchMove.x = 0; touchMove.y = 0;
+  }
+}
+joyZone.addEventListener('touchend', resetJoy);
+joyZone.addEventListener('touchcancel', resetJoy);
+
+/* Touch: look zone */
+const lookZone = $('lookZone');
+let lookId = null;
+const lookLast = { x: 0, y: 0 };
+
+lookZone.addEventListener('touchstart', (ev) => {
+  if (gameState !== STATE.PLAY) return;
+  const t = ev.changedTouches[0];
+  lookId = t.identifier;
+  lookLast.x = t.clientX; lookLast.y = t.clientY;
+}, { passive: true });
+
+lookZone.addEventListener('touchmove', (ev) => {
+  for (const t of ev.changedTouches){
+    if (t.identifier !== lookId) continue;
+    const dx = t.clientX - lookLast.x;
+    const dy = t.clientY - lookLast.y;
+    lookLast.x = t.clientX; lookLast.y = t.clientY;
+    const s = 0.0045 * lookSens;
+    player.yaw   -= dx * s;
+    player.pitch -= dy * s;
+    player.pitch = Math.max(-1.46, Math.min(1.46, player.pitch));
+  }
+}, { passive: true });
+
+function resetLook(ev){
+  for (const t of ev.changedTouches) if (t.identifier === lookId) lookId = null;
+}
+lookZone.addEventListener('touchend', resetLook);
+lookZone.addEventListener('touchcancel', resetLook);
+
+/* Touch: action buttons */
+function bindTouchBtn(id, onDown, onUp){
+  const el = $(id);
+  el.addEventListener('touchstart', (e) => { e.preventDefault(); if (onDown) onDown(); }, { passive: false });
+  el.addEventListener('touchend',   (e) => { e.preventDefault(); if (onUp) onUp(); }, { passive: false });
+  el.addEventListener('touchcancel',() => { if (onUp) onUp(); });
+}
+bindTouchBtn('tbFire',
+  () => { if (gameState === STATE.PLAY){ mouseDown = true; mouseJustPressed = true; } },
+  () => { mouseDown = false; });
+bindTouchBtn('tbAim',  () => { rmbDown = true; }, () => { rmbDown = false; });
+bindTouchBtn('tbJump', () => { keys['Space'] = true; }, () => { keys['Space'] = false; });
+bindTouchBtn('tbRel',  () => { if (gameState === STATE.PLAY) startReload(); });
+bindTouchBtn('tbWep',  () => { if (gameState === STATE.PLAY) switchWeapon(player.weapIdx === 0 ? 1 : 0); });
+bindTouchBtn('tbPause',() => { if (gameState === STATE.PLAY) pauseMission(); });
+
+/* ================================================================
+   18. RESIZE & MAIN LOOP
+================================================================ */
+window.addEventListener('resize', () => {
+  const w = window.innerWidth, h = window.innerHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+  composer.setSize(w, h);
+});
+
+const frameClock = new THREE.Clock();
+let lastClockSec = -1;
+
+function animate(){
+  requestAnimationFrame(animate);
+  const dt = Math.min(frameClock.getDelta(), 0.05);
+
+  if (gameState === STATE.PLAY){
+    stats.elapsed += dt;
+    stats.clock = Math.max(0, stats.clock - dt);
+    updateEnemies(dt);
+    updatePlayer(dt);
+
+    const sec = Math.ceil(stats.clock);
+    if (sec !== lastClockSec){ lastClockSec = sec; updateHud(); }
+
+    if (stats.clock <= 0) endMission(false);
+  }
+
+  sparkPool.update(dt);
+  bloodPool.update(dt);
+  smokePool.update(dt);
+
+  for (const tr of tracers){
+    if (!tr.mesh.visible) continue;
+    tr.t += dt;
+    if (tr.t >= tr.dur) tr.mesh.visible = false;
+  }
+
+  if (hitmarkT > 0){
+    hitmarkT -= dt;
+    if (hitmarkT <= 0) hitmarkEl.style.opacity = '0';
+  }
+
+  composer.render();
+}
+
+/* ================================================================
+   19. BOOT
+================================================================ */
+camera.position.set(player.pos.x, player.pos.y + player.height - 0.10, player.pos.z);
+camera.rotation.y = player.yaw;
+camera.rotation.x = player.pitch;
+showScreen(STATE.MENU);
+animate();
+
+setBoot(100, 'Sector 7 online.');
+setTimeout(() => { bootEl.classList.add('off'); }, 320);
+</script>
+</body>
+<!-- ✅ 审核通过 · 了了了游游戏守则 v4.0.1 · 适龄建议 12+ · 审核日期 2026-11-17 -->
+</html>

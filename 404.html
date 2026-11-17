@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>正在跳转…</title>
+
+  <script>
+    (function () {
+      var target = '/index.html';
+
+      // 当前路径（去掉结尾的 /），用来防止自己跳自己造成死循环
+      var current = location.pathname.replace(/\/+$/, '') || '/';
+
+      if (current === '/index.html' || current === '/index.htm') {
+        return; // 已经在根目录首页，不再跳转
+      }
+
+      // 用 replace 跳转，不会在浏览器历史里留下这条记录
+      location.replace(target);
+    })();
+  </script>
+
+  <noscript>
+    <!-- JS 被禁用时的兜底方案 -->
+    <meta http-equiv="refresh" content="0; url=/index.html">
+  </noscript>
+</head>
+<body>
+  <p>正在跳转到 <a href="/index.html">首页</a>…</p>
+</body>
+</html>
